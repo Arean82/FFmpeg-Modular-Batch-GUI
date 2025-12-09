@@ -1,3 +1,6 @@
+# qt_main.py
+# Main GUI application using PySide6 for FFmpeg Modular Batch GUI
+
 import sys, os, signal, threading
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
