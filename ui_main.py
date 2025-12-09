@@ -18,6 +18,8 @@ from estimations import estimate_size_mb
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+from button import ThemedToggleButton
+
 
 # ---------------- FOLDER WATCH HANDLER ----------------
 
@@ -158,8 +160,10 @@ class FFmpegGUI:
         self.active_args_entry.pack(side="left", fill="x", expand=True, padx=5)
 
         # ---------- START BUTTON ----------
-        self.start_btn = ttk.Button(root, text="Start Conversion",
-                                    command=self.toggle_start)
+        #self.start_btn = ttk.Button(root, text="Start Conversion",command=self.toggle_start)
+        #self.start_btn.pack(pady=6)
+
+        self.start_btn = ThemedToggleButton(root, self.toggle_start)
         self.start_btn.pack(pady=6)
 
         # ---------- PROGRESS BAR ----------
@@ -339,12 +343,14 @@ class FFmpegGUI:
 
     def start_conversion(self):
         self.is_running = True
-        self.start_btn.configure(text="Stop Conversion")
+        #self.start_btn.configure(text="Stop Conversion")
+        self.start_btn.set_running(True)
         threading.Thread(target=self.start, daemon=True).start()
 
     def stop_conversion(self):
         self.is_running = False
-        self.start_btn.configure(text="Start Conversion")
+        #self.start_btn.configure(text="Start Conversion")
+        self.start_btn.set_running(False)
 
         for p in self.active_processes:
             try:
@@ -384,7 +390,8 @@ class FFmpegGUI:
         self.root.after(600, lambda: self.log_line("✅ Conversion finished. Files auto-refreshed"))
 
         self.is_running = False
-        self.root.after(0, lambda: self.start_btn.configure(text="Start Conversion"))
+        #self.root.after(0, lambda: self.start_btn.configure(text="Start Conversion"))
+        self.root.after(0, lambda: self.start_btn.set_running(False))
 
 
     # ================= REFRESH =================
