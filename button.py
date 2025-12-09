@@ -33,7 +33,7 @@ class ThemedToggleButton:
     def _create_styles(self):
         # START styles (Green)
         self.style.configure("Start.TButton",
-            foreground="white",
+            foreground="#523232",
             background="#2ecc71",
             font=("Segoe UI", 10, "bold"),
             padding=8
