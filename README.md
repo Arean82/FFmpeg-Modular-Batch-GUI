@@ -79,8 +79,6 @@ and auto-merged with defaults.
 
 ## 🗂 Project Structure
 
-```
-
 ffmpeg_gui/
 │
 ├── main.py
@@ -91,8 +89,6 @@ ffmpeg_gui/
 ├── ui_main.py
 ├── ui_preset_editor.py
 └── ffmpeg_presets.json
-
-````
 
 ---
 
