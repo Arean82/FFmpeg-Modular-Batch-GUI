@@ -1,0 +1,156 @@
+import json, os
+from config import PRESET_FILE
+DEFAULT_PRESETS = {
+
+    # ---------- COPY / REWRAP ----------
+    "Stream Copy (Fast)": {
+        "args": "-c:v copy -c:a aac -b:a 128k",
+        "desc": "Fast copy, minimal audio re-encode",
+        "category": "Copy"
+    },
+
+    "Direct Copy (Fastest, No Re-encode)": {
+        "args": "-c:v copy -c:a copy",
+        "desc": "Instant copy, no quality loss",
+        "category": "Copy"
+    },
+
+    "Direct Copy + Error Correction": {
+        "args": "-fflags +discardcorrupt -err_detect ignore_err -c:v copy -c:a copy",
+        "desc": "Copies even damaged streams",
+        "category": "Copy"
+    },
+
+    "Rewrap Only (TS → MP4, No Reencode)": {
+        "args": "-c copy -movflags +faststart",
+        "desc": "Container change only",
+        "category": "Copy"
+    },
+
+    # ---------- INTEL QSV GPU ----------
+    "H.264 QSV Balanced": {
+        "args": "-vf format=nv12 -c:v h264_qsv -global_quality 26 -pix_fmt nv12 -c:a aac -b:a 128k",
+        "desc": "Intel GPU balanced compression",
+        "category": "GPU"
+    },
+
+    "H.264 QSV High Quality": {
+        "args": "-vf format=nv12 -c:v h264_qsv -global_quality 20 -pix_fmt nv12 -c:a aac -b:a 160k",
+        "desc": "Intel GPU high quality",
+        "category": "GPU"
+    },
+
+    "HEVC QSV Small": {
+        "args": "-vf format=nv12 -c:v hevc_qsv -global_quality 25 -pix_fmt nv12 -c:a aac -b:a 128k",
+        "desc": "Small HEVC using Intel GPU",
+        "category": "GPU"
+    },
+
+    "HEVC QSV Very Small": {
+        "args": "-vf format=nv12 -c:v hevc_qsv -global_quality 30 -pix_fmt nv12 -c:a aac -b:a 96k",
+        "desc": "Maximum HEVC compression (Intel)",
+        "category": "GPU"
+    },
+
+    "HEVC 720p Sharpen": {
+        "args": "-vf \"scale=1280:720,unsharp=5:5:0.6\" -c:v hevc_qsv -b:v 2500k -maxrate 3500k "
+                "-bufsize 7000k -c:a aac -b:a 128k",
+        "desc": "720p scale + sharpen",
+        "category": "GPU"
+    },
+
+    # ---------- CPU ----------
+    "H.264 CPU Standard": {
+        "args": "-c:v libx264 -preset medium -crf 23 -c:a aac -b:a 128k",
+        "desc": "CPU encode, normal quality",
+        "category": "CPU"
+    },
+
+    "H.264 CPU High Quality": {
+        "args": "-c:v libx264 -preset slow -crf 18 -c:a aac -b:a 160k",
+        "desc": "High quality CPU encode",
+        "category": "CPU"
+    },
+
+    "HEVC CPU Small": {
+        "args": "-c:v libx265 -preset medium -crf 28 -c:a aac -b:a 128k",
+        "desc": "HEVC CPU small size",
+        "category": "CPU"
+    },
+
+    "HEVC CPU Very Small": {
+        "args": "-c:v libx265 -preset slow -crf 32 -c:a aac -b:a 96k",
+        "desc": "Maximum CPU compression",
+        "category": "CPU"
+    },
+
+    # ---------- AUDIO ONLY ----------
+    "Extract Audio AAC": {
+        "args": "-vn -c:a aac -b:a 192k",
+        "desc": "Extract AAC audio",
+        "category": "Audio"
+    },
+
+    "Extract Audio MP3": {
+        "args": "-vn -c:a libmp3lame -b:a 192k",
+        "desc": "Extract MP3 audio",
+        "category": "Audio"
+    },
+
+    "Audio Copy Only": {
+        "args": "-vn -c:a copy",
+        "desc": "Copy audio only",
+        "category": "Audio"
+    },
+
+    # ---------- FIX / FILTER ----------
+    "Fix A/V Sync": {
+        "args": "-async 1 -vsync 1 -c:v copy -c:a aac -b:a 128k",
+        "desc": "Fix sync issues",
+        "category": "Fix"
+    },
+
+    "Normalize Audio + Copy Video": {
+        "args": "-c:v copy -filter:a loudnorm -c:a aac -b:a 128k",
+        "desc": "Normalize audio only",
+        "category": "Fix"
+    },
+
+    # ---------- LOW BANDWIDTH ----------
+    "Mobile Friendly 480p": {
+        "args": "-vf scale=854:480 -c:v h264_qsv -b:v 900k -c:a aac -b:a 96k",
+        "desc": "Mobile size",
+        "category": "LowBW"
+    },
+
+    "Ultra Low Bandwidth": {
+        "args": "-vf scale=640:360 -c:v libx264 -crf 32 -preset veryfast -c:a aac -b:a 64k",
+        "desc": "Very small files",
+        "category": "LowBW"
+    }
+}
+
+def load_presets():
+    data = {}
+
+    if os.path.exists(PRESET_FILE):
+        with open(PRESET_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+    # ✅ Auto-merge new defaults
+    changed = False
+    for k, v in DEFAULT_PRESETS.items():
+        if k not in data:
+            data[k] = v
+            changed = True
+
+    if changed:
+        save_presets(data)
+
+    return data
+
+
+
+def save_presets(data):
+    with open(PRESET_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
