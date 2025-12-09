@@ -1,3 +1,6 @@
+# config.py
+# Configuration file for FFmpeg paths and settings
+
 FFMPEG_PATH = r"C:\\Users\\user\\Downloads\\Compressed\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffmpeg.exe"
 FFPROBE_PATH = FFMPEG_PATH.replace("ffmpeg.exe", "ffprobe.exe")
 

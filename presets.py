@@ -1,3 +1,6 @@
+# presets.py
+# Preset management for FFmpeg command-line arguments Loads, saves, and merges default presets
+
 import json, os
 from config import PRESET_FILE
 DEFAULT_PRESETS = {

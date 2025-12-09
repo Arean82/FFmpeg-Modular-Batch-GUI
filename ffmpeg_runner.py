@@ -1,3 +1,6 @@
+# ffmpeg_runner.py
+# Module to run FFmpeg commands and track progress
+
 import subprocess, re, os, signal
 
 TIME_RE = re.compile(r"time=(\d+):(\d+):(\d+\.\d+)")

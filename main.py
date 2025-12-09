@@ -1,3 +1,6 @@
+# main.py
+# Entry point for FFmpeg Modular GUI Application
+
 import tkinter as tk
 from ui_main import FFmpegGUI
 

@@ -1,3 +1,7 @@
+# file_manager.py
+# File management utilities for video processing
+# Uses FFprobe to extract video metadata
+
 import os, subprocess
 from config import VIDEO_EXTS, FFPROBE_PATH
 

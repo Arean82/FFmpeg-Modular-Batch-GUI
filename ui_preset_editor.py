@@ -1,3 +1,8 @@
+# ui_preset_editor.py
+# Preset Editor Dialog for managing FFmpeg presets
+# Allows creating, editing, and deleting presets
+
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 from presets import save_presets
