@@ -1,13 +1,13 @@
 # FFmpeg-Modular-Batch-GUI
 
 
-```md
+
 # 🎬 FFmpeg Modular Batch GUI (Python + Tkinter)
 
 A **modular, preset-based FFmpeg batch video converter GUI** built with **Python + Tkinter**.  
 Designed for fast **bulk conversion**, **stream copy**, **Intel QSV GPU encoding**, **audio extraction**, **error recovery**, and **resolution scaling** with a clean checkbox-based interface.
 
----
+
 
 ## ✅ Key Features
 
@@ -27,7 +27,7 @@ Designed for fast **bulk conversion**, **stream copy**, **Intel QSV GPU encoding
 - 🛑 **Kills FFmpeg process on forced exit**
 - 🗂 **Preset categorization (Copy / GPU / CPU / Audio / Fix / LowBW)**
 
----
+
 
 ## 📂 Supported Input Formats
 
@@ -37,7 +37,7 @@ Designed for fast **bulk conversion**, **stream copy**, **Intel QSV GPU encoding
 
 ```
 
----
+
 
 ## 🧠 Preset Categories
 
@@ -75,7 +75,7 @@ ffmpeg_presets.json
 ```
 and auto-merged with defaults.
 
----
+
 
 ## 🗂 Project Structure
 
@@ -90,7 +90,7 @@ ffmpeg_gui/
 ├── ui_preset_editor.py
 └── ffmpeg_presets.json
 
----
+
 
 ## ⚙️ Requirements
 
@@ -98,7 +98,7 @@ ffmpeg_gui/
 - FFmpeg **with Intel QSV support**
 - Windows 10 / 11 (tested)
 
----
+
 
 ## 🔧 Setup Instructions
 
@@ -117,7 +117,7 @@ FFMPEG_PATH = r"C:\path\to\ffmpeg.exe"
 python main.py
 ```
 
----
+
 
 ## ▶️ How to Use
 
@@ -138,7 +138,7 @@ python main.py
    * Progress bar
 9. Completion popup appears when done ✅
 
----
+
 
 ## 🚨 Safe Exit Handling
 
@@ -147,7 +147,7 @@ python main.py
   * You get a **warning**
   * If confirmed, all FFmpeg processes are **terminated safely**
 
----
+
 
 ## 🐞 Known Limitations
 
@@ -155,7 +155,7 @@ python main.py
 * No multi-GPU scheduling
 * No job queue persistence (yet)
 
----
+
 
 ## 🛣 Roadmap
 
@@ -165,20 +165,20 @@ python main.py
 * 🎞 Frame preview
 * 🔄 Resume failed jobs
 * Planned update to QT6
----
+
 
 ## 🛡 License
 
 This project is released under the **MIT License**.
 
----
+
 
 ## 🙏 Credits
 
 * FFmpeg Team for the backend engine
 * Python + Tkinter for GUI framework
 
----
+
 
 ## 📬 Support
 
@@ -187,13 +187,13 @@ If you face issues:
 * Open a GitHub issue
 * Or attach console logs for debugging
 
----
+
 
 ### ✅ Built for power users who prefer **precision, speed, and control** over one-click bloated converters.
 
 ```
 
----
+
 
 If you want, I can also:
 
