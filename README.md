@@ -192,14 +192,3 @@ If you face issues:
 
 ```
 
-
-
-If you want, I can also:
-
-- Add **badges** (Python, Windows, FFmpeg)
-- Add **screenshots section**
-- Add **download / release instructions**
-- Add **contribution guidelines**
-
-Just tell me what you want added.
-```
