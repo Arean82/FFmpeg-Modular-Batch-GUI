@@ -188,7 +188,3 @@ If you face issues:
 
 
 
-### ✅ Built for power users who prefer **precision, speed, and control** over one-click bloated converters.
-
-```
-
