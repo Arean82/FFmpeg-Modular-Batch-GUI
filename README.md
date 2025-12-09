@@ -1,190 +1,197 @@
+Perfect — here’s a **polished, icon-rich, badge-style README** you can directly paste into your repo to make it look modern and attractive. I’ve kept it clean, professional, and “GitHub-worthy” with emojis, badges, and visual structure:
 
-# 🎬 FFmpeg Modular Batch GUI (Python + Tkinter)
+---
 
-A **modular, preset-based FFmpeg batch video converter GUI** built with **Python + Tkinter**.  
-Designed for fast **bulk conversion**, **stream copy**, **Intel QSV GPU encoding**, **audio extraction**, **error recovery**, and **resolution scaling** with a clean checkbox-based interface.
+```markdown
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Arean82/FFmpeg-Modular-Batch-GUI/main/assets/logo.png" width="140" alt="FFmpeg Modular Batch GUI Logo">
+</p>
 
+<h1 align="center">FFmpeg Modular Batch GUI</h1>
 
+<p align="center">
+  <b>A powerful, modular, preset-based FFmpeg batch conversion GUI built with Python & Tkinter</b>
+</p>
 
-## ✅ Key Features
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.9%2B-blue.svg">
+  <img src="https://img.shields.io/badge/Platform-Windows-blue.svg">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg">
+  <img src="https://img.shields.io/badge/FFmpeg-Required-red.svg">
+</p>
 
-- 📁 **Folder-based batch processing**
-- ✅ **Checkbox file selection**
-- 🎛 **Preset-based FFmpeg commands**
-- ⚡ **Intel QSV GPU encoding support**
-- 🔁 **Direct stream copy & rewrap (no re-encode)**
-- 🎧 **Audio-only extraction**
-- 📏 **Per-file output resolution selection**
-- 📦 **Per-file output format selection**
-- 📝 **Live FFmpeg console logs in GUI**
-- 📊 **Progress bar with real-time updates**
-- ✏️ **Editable output file names**
-- 📂 **Single output folder per session**
-- ⚠️ **Warns on close if encoding is running**
-- 🛑 **Kills FFmpeg process on forced exit**
-- 🗂 **Preset categorization (Copy / GPU / CPU / Audio / Fix / LowBW)**
-- **Modular Architecture**
+---
 
+## 🧾 Overview
 
+**FFmpeg Modular Batch GUI** is a desktop application that simplifies complex FFmpeg batch operations using a clean graphical interface.  
+It is designed for **bulk video processing, stream copy, GPU encoding (Intel QSV), audio extraction, and resolution scaling** — all without touching the command line.
 
-## 📂 Supported Input Formats
+---
 
-```
+## ✨ Key Features
 
-.ts   .mp4   .mkv   .avi   .mov
+✅ Folder-based batch processing  
+✅ Checkbox-based file selection  
+✅ Preset-driven FFmpeg commands  
+✅ **Intel QSV GPU Acceleration** ⚡  
+✅ Stream copy / rewrap (ultra-fast)  
+✅ Audio-only extraction (AAC / MP3, etc.)  
+✅ Per-file output resolution & format  
+✅ Real-time FFmpeg console logs  
+✅ Live progress tracking  
+✅ Output file renaming  
+✅ Safe exit with running-process protection  
+✅ Modular, expandable architecture  
 
-```
+---
 
+## 🎯 Use Cases
 
+- 🎬 Bulk video conversion  
+- 📦 Rewrapping `.ts` → `.mp4` without re-encoding  
+- 🔊 Audio extraction from videos  
+- ⚡ GPU-accelerated encoding  
+- 🧪 Fixing corrupted or problem media  
+- 📺 Batch resolution downscaling  
 
-## 🧠 Preset Categories
+---
 
-- **Copy**
-  - Direct Copy (Fastest)
-  - Copy with Error Recovery
-  - Rewrap (TS → MP4)
-
-- **GPU (Intel QSV)**
-  - H.264 QSV Balanced / High Quality
-  - HEVC QSV Small / Very Small
-  - HEVC 720p Sharpen
-
-- **CPU (x264 / x265)**
-  - H.264 Standard / High Quality
-  - HEVC Small / Very Small
-
-- **Audio Only**
-  - Extract AAC / MP3
-  - Audio Copy Only
-
-- **Fix / Filters**
-  - Fix A/V Sync
-  - Normalize Audio
-
-- **Low Bandwidth**
-  - 480p Mobile
-  - Ultra Low Bandwidth
-
-Presets are stored in:
-```
-
-ffmpeg_presets.json
+## 🗂️ Project Structure
 
 ```
-and auto-merged with defaults.
 
-
-
-## 🗂 Project Structure
-
-```
-ffmpeg_gui/
+FFmpeg-Modular-Batch-GUI/
 │
-├── main.py
-├── config.py
-├── presets.py
-├── file_manager.py
-├── ffmpeg_runner.py
-├── ui_main.py
-├── ui_preset_editor.py
-└── ffmpeg_presets.json
-```
+├── main.py                 # Application entry point
+├── config.py               # FFmpeg configuration
+├── presets.py              # Preset definitions
+├── file_manager.py         # File scanning & selection
+├── ffmpeg_runner.py        # FFmpeg command executor
+├── ui_main.py              # Main GUI window
+├── ui_tree.py              # File tree view
+├── ui_presets.py           # Preset manager UI
+├── ui_preset_editor.py    # Preset editor
+└── ffmpeg_presets.json    # Default + custom presets
 
+````
+
+---
 
 ## ⚙️ Requirements
 
-- Python **3.9+**
-- FFmpeg **with Intel QSV support**
-- Windows 10 / 11 (tested)
+- 🐍 Python **3.9 or newer**
+- 🎥 FFmpeg (QSV-enabled build for GPU encoding)
+- 🪟 Windows 10 / 11
 
+---
 
+## 🛠️ Installation
 
-## 🔧 Setup Instructions
-
-1. Install Python  
-2. Download FFmpeg (QSV enabled)
-3. Set FFmpeg path in:
-
-```python
-# config.py
-FFMPEG_PATH = r"C:\path\to\ffmpeg.exe"
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Arean82/FFmpeg-Modular-Batch-GUI.git
+   cd FFmpeg-Modular-Batch-GUI
 ````
 
-4. Run:
+2. **Install Python dependencies (if any later added)**
+   *(Currently uses only standard libraries)*
 
-```bash
-python main.py
-```
+3. **Download FFmpeg**
 
+4. **Set FFmpeg path in `config.py`**
 
+   ```python
+   FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
+   ```
+
+5. **Launch the app**
+
+   ```bash
+   python main.py
+   ```
+
+---
 
 ## ▶️ How to Use
 
-1. Click **Select Folder**
-2. Choose a folder with video files
-3. Select files using **checkboxes**
-4. Choose a **preset**
-5. (Optional) Change:
+1. 📁 Select input folder
+2. ✅ Select files using checkboxes
+3. 📐 Choose preset
+4. 📝 Modify output name, format, or resolution (optional)
+5. 📤 Select output folder
+6. ▶️ Click **Start Conversion**
+7. 📊 Monitor progress and logs in real-time
+8. ✅ Completion popup when finished
 
-   * Output name
-   * Output format
-   * Output resolution
-6. Choose **Output Folder**
-7. Click **Start Conversion**
-8. Monitor:
+⚠️ If you attempt to close while encoding is running, the app will warn you and safely terminate FFmpeg if forced.
 
-   * Live logs
-   * Progress bar
-9. Completion popup appears when done ✅
+---
 
+## 🚧 Known Limitations
 
+* Only **Intel QSV** GPU encoding supported
+* No job resume after app restart
+* No NVENC / AMD support (yet)
 
-## 🚨 Safe Exit Handling
+---
 
-* If FFmpeg is running and you close the app:
+## 🛣️ Roadmap
 
-  * You get a **warning**
-  * If confirmed, all FFmpeg processes are **terminated safely**
+* ⏳ ETA for each file
+* 📝 Export logs to file
+* 🧩 Plugin system for presets
+* 🖼️ Frame preview before conversion
+* 🔁 Resume failed jobs
+* 🎨 Possible Qt-based UI upgrade
 
+---
 
+## 📜 License
 
-## 🐞 Known Limitations
+Licensed under the **MIT License**.
+See `LICENSE` file for details.
 
-* NVENC not supported (Intel QSV only)
-* No multi-GPU scheduling
-* No job queue persistence (yet)
+---
 
+## 🙏 Acknowledgements
 
+* 🎞️ **FFmpeg Team** — backend video engine
+* 🐍 **Python & Tkinter** — GUI framework
+* ❤️ Open-source contributors & testers
 
-## 🛣 Roadmap
+---
 
-* ⏳ Estimated time remaining per file
-* 📄 Export conversion logs
-* 🧩 Plugin-based preset packs
-* 🎞 Frame preview
-* 🔄 Resume failed jobs
-* Planned update to QT6
+## 📬 Support & Contributions
 
+* 🐞 Open an **Issue** for bugs or feature requests
+* 🔧 **Pull Requests** are welcome
+* 📄 Include FFmpeg logs for faster debugging
 
-## 🛡 License
+---
 
-This project is released under the **MIT License**.
+<p align="center">
+  ⭐ If you find this project useful, please consider giving it a star!
+</p>
+```
 
+---
 
+### ✅ What You Can Add for Extra Polish (Optional)
 
-## 🙏 Credits
+If you want, I can also:
 
-* FFmpeg Team for the backend engine
-* Python + Tkinter for GUI framework
+* Add **automatic GitHub Actions status badge**
+* Add **screenshots section (with markdown gallery)**
+* Create a **professional SVG logo**
+* Add **Contributing.md + Issue templates**
 
+---
 
+If you want, I can now:
 
-## 📬 Support
+* ✅ **Match this exactly to your existing folder names**
+* ✅ Add a **Screenshots section** (if you upload 1–2 GUI images)
+* ✅ Add a **short “Quick Start” version for beginners**
 
-If you face issues:
-
-* Open a GitHub issue
-* Or attach console logs for debugging
-
-
-
+Tell me what style you prefer — **minimal / professional / flashy dev-tool look**.
