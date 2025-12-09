@@ -1,14 +1,36 @@
+# ui_main.py
+# Main GUI for FFmpeg Modular GUI Application
+# Handles file loading, preset management, and FFmpeg execution.
+
 import signal
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading, os
+import queue
+import time
 
 from presets import load_presets
 from file_manager import scan_folder, get_resolution, get_duration
 from ffmpeg_runner import run_ffmpeg
 from ui_preset_editor import PresetEditor
-from estimations import estimate_size_mb   # ✅ USE CENTRAL MODULE ONLY
+from estimations import estimate_size_mb
 
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+
+# ---------------- FOLDER WATCH HANDLER ----------------
+
+class FolderWatchHandler(FileSystemEventHandler):
+    def __init__(self, queue):
+        self.queue = queue
+
+    def on_any_event(self, event):
+        if not event.is_directory:
+            self.queue.put(True)
+
+
+# ---------------- MAIN GUI ----------------
 
 class FFmpegGUI:
     def __init__(self, root):
@@ -20,12 +42,18 @@ class FFmpegGUI:
         self.output_dir = None
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.active_processes = []
+        self.is_running = False
+
+        # ---- Watchdog ----
+        self.fs_observer = None
+        self.fs_queue = queue.Queue()
 
         # ---------- TOP BAR ----------
         top = ttk.Frame(root)
         top.pack(fill="x")
 
         ttk.Button(top, text="Select Folder", command=self.select_folder).pack(side="left")
+        ttk.Button(top, text="Refresh", command=self.refresh_files).pack(side="left", padx=5)
         ttk.Button(top, text="Add Preset", command=self.open_preset_editor).pack(side="left", padx=5)
         ttk.Button(top, text="Select All", command=self.select_all).pack(side="left", padx=5)
         ttk.Button(top, text="Uncheck All", command=self.uncheck_all).pack(side="left", padx=5)
@@ -55,20 +83,17 @@ class FFmpegGUI:
         opts = ttk.Frame(root)
         opts.pack(fill="x", padx=8, pady=2)
 
-        ttk.Checkbutton(
-            opts, text="Auto-create /converted subfolder",
-            variable=self.auto_subfolder_var
-        ).pack(side="left", padx=5)
+        ttk.Checkbutton(opts, text="Auto-create /converted subfolder",
+                        variable=self.auto_subfolder_var).pack(side="left", padx=5)
 
-        ttk.Checkbutton(
-            opts, text="Estimate output size",
-            variable=self.estimate_size_var
-        ).pack(side="left", padx=15)
+        ttk.Checkbutton(opts, text="Estimate output size",
+                        variable=self.estimate_size_var).pack(side="left", padx=15)
 
         # ---------- FILE TABLE ----------
         self.tree = ttk.Treeview(
             root,
-            columns=("use", "in", "out", "ext", "res", "op_res", "op_fmt", "cur_size", "est_size"),
+            columns=("use", "in", "out", "ext", "res",
+                     "op_res", "op_fmt", "cur_size", "est_size"),
             show="headings",
             selectmode="none"
         )
@@ -88,11 +113,7 @@ class FFmpegGUI:
             self.tree.column(col, width=width, anchor="center")
 
         self.tree.pack(fill="both", expand=True)
-
         self.tree.bind("<Button-1>", self.toggle_checkbox)
-        #self.tree.bind("<Double-1>", self.edit_output_name)
-        #self.tree.bind("<Double-1>", self.edit_output_resolution, add="+")
-        #self.tree.bind("<Double-1>", self.edit_output_format, add="+")
 
         # ---------- PRESETS ----------
         sorted_presets = sorted(
@@ -127,8 +148,9 @@ class FFmpegGUI:
         self.active_args_entry.pack(side="left", fill="x", expand=True, padx=5)
 
         # ---------- START BUTTON ----------
-        #ttk.Button(root, text="Start Conversion", command=self.start).pack(pady=6)
-        ttk.Button(root, text="Start Conversion", command=self.toggle_start).pack(pady=6)
+        self.start_btn = ttk.Button(root, text="Start Conversion",
+                                    command=self.toggle_start)
+        self.start_btn.pack(pady=6)
 
         # ---------- PROGRESS BAR ----------
         self.progress = ttk.Progressbar(root, length=500)
@@ -142,10 +164,49 @@ class FFmpegGUI:
         self.log = tk.Text(log_frame, height=10, wrap="word")
         self.log.pack(fill="both", expand=True)
 
-        # ---------- INITIAL DISPLAY ----------
         self.update_active_args()
 
-    # ---------------- Presets ----------------
+
+    # ================= WATCHDOG =================
+
+    def start_folder_watcher(self, folder):
+        self.stop_folder_watcher()
+
+        handler = FolderWatchHandler(self.fs_queue)
+        self.fs_observer = Observer()
+        self.fs_observer.schedule(handler, folder, recursive=False)
+        self.fs_observer.daemon = True
+        self.fs_observer.start()
+
+        self.root.after(1000, self.poll_fs_changes)
+
+    def stop_folder_watcher(self):
+        if self.fs_observer:
+            self.fs_observer.stop()
+            self.fs_observer.join()
+            self.fs_observer = None
+
+    def poll_fs_changes(self):
+        if not self.current_folder:
+            return
+
+        refreshed = False
+        while not self.fs_queue.empty():
+            try:
+                self.fs_queue.get_nowait()
+                refreshed = True
+            except:
+                pass
+
+        if refreshed:
+            self.refresh_files()
+            self.log_line("📂 Folder auto-synced")
+
+        self.root.after(1000, self.poll_fs_changes)
+
+
+    # ================= PRESETS =================
+
     def refresh_presets(self):
         self.presets = load_presets()
         sorted_presets = sorted(
@@ -165,14 +226,15 @@ class FFmpegGUI:
     def open_preset_editor(self):
         PresetEditor(self.root, self.presets, self.refresh_presets)
 
-    # ---------------- Output Folder ----------------
+
+    # ================= FILE LOADING =================
+
     def browse_output(self):
         folder = filedialog.askdirectory()
         if folder:
             self.output_dir = folder
             self.out_var.set(folder)
 
-    # ---------------- File Loading ----------------
     def select_folder(self):
         folder = filedialog.askdirectory()
         if not folder:
@@ -185,6 +247,7 @@ class FFmpegGUI:
             self.out_var.set(folder)
 
         self.load_files("all")
+        self.start_folder_watcher(folder)
 
     def load_files(self, ext_filter):
         self.tree.delete(*self.tree.get_children())
@@ -193,14 +256,10 @@ class FFmpegGUI:
         paths = scan_folder(self.current_folder)
 
         for p in paths:
-            if not p or not os.path.exists(p):
+            if not os.path.exists(p):
                 continue
 
-            name = os.path.basename(p).strip()
-            if not name:
-                continue
-
-            base, ext = os.path.splitext(name)
+            base, ext = os.path.splitext(os.path.basename(p))
             ext_clean = ext.lstrip(".").lower()
 
             if ext_filter != "all" and ext_clean != ext_filter:
@@ -212,47 +271,34 @@ class FFmpegGUI:
                 res = "unknown"
 
             try:
-                cur_size = round(os.path.getsize(p) / (1024 * 1024), 2)
+                cur_size = round(os.path.getsize(p)/(1024*1024), 2)
             except:
                 cur_size = "?"
 
-            item = {
-                "path": p,
-                "use": True,
-                "out": base,
-                "op_res": "Same",
-                "op_fmt": ext_clean
-            }
+            self.files.append({"path": p, "use": True})
 
-            self.files.append(item)
-
-            row = (
-                "✔", base, base, f".{ext_clean}",
-                res, "Same", ext_clean,
-                cur_size, ""
-            )
-
-            if len(row) == 9:
-                self.tree.insert("", "end", values=row)
+            row = ("✔", base, base, f".{ext_clean}",
+                   res, "Same", ext_clean, cur_size, "")
+            self.tree.insert("", "end", values=row)
 
     def apply_filter(self, event=None):
-        if not self.current_folder:
-            return
-        ext = self.ext_filter.get()
-        self.load_files(ext)
+        if self.current_folder:
+            self.load_files(self.ext_filter.get())
 
-    # ---------------- Checkboxes ----------------
+
+    # ================= CHECKBOXES =================
+
     def select_all(self):
-        for i, f in enumerate(self.files):
-            f["use"] = True
+        for i in range(len(self.files)):
+            self.files[i]["use"] = True
             row = self.tree.get_children()[i]
             vals = list(self.tree.item(row, "values"))
             vals[0] = "✔"
             self.tree.item(row, values=vals)
 
     def uncheck_all(self):
-        for i, f in enumerate(self.files):
-            f["use"] = False
+        for i in range(len(self.files)):
+            self.files[i]["use"] = False
             row = self.tree.get_children()[i]
             vals = list(self.tree.item(row, "values"))
             vals[0] = ""
@@ -263,40 +309,92 @@ class FFmpegGUI:
         col = self.tree.identify_column(event.x)
         if region != "cell" or col != "#1":
             return
+
         row = self.tree.identify_row(event.y)
         idx = self.tree.index(row)
         self.files[idx]["use"] = not self.files[idx]["use"]
+
         vals = list(self.tree.item(row, "values"))
         vals[0] = "✔" if self.files[idx]["use"] else ""
         self.tree.item(row, values=vals)
 
-    # ---------------- ACTIVE PRESET + ESTIMATE ----------------
-    def update_active_args(self, event=None):
-        display_name = self.preset_box.get()
-        if not display_name:
-            return
 
-        preset_key = display_name.split("::", 1)[1].strip()
-        if preset_key not in self.presets:
-            return
+    # ================= START / STOP =================
 
-        args = self.presets[preset_key]["args"]
-        self.active_args_var.set(args)
+    def toggle_start(self):
+        if not self.is_running:
+            self.start_conversion()
+        else:
+            self.stop_conversion()
 
-        if not self.estimate_size_var.get():
-            return
+    def start_conversion(self):
+        self.is_running = True
+        self.start_btn.configure(text="Stop Conversion")
+        threading.Thread(target=self.start, daemon=True).start()
 
-        for i, f in enumerate(self.files):
+    def stop_conversion(self):
+        self.is_running = False
+        self.start_btn.configure(text="Start Conversion")
+
+        for p in self.active_processes:
             try:
-                duration = get_duration(f["path"])
-                est = estimate_size_mb(duration, args)
-
-                row_id = self.tree.get_children()[i]
-                vals = list(self.tree.item(row_id, "values"))
-                vals[8] = est if est else ""
-                self.tree.item(row_id, values=vals)
+                #os.kill(p.pid, signal.SIGTERM)
+                os.kill(p.pid, signal.SIGINT)
             except:
                 pass
+
+        self.active_processes.clear()
+        self.log_line("⛔ Conversion stopped by user")
+
+
+    # ================= FFmpeg WORKER (AUTO-REFRESH WIRED) =================
+
+    def start(self):
+        self.active_processes.clear()
+
+        selected = [f for f in self.files if f.get("use")]
+
+        total = len(selected)
+        done = 0
+
+        for f in selected:
+            if not self.is_running:
+                break
+
+            p = run_ffmpeg(f["path"], self.output_dir, self.active_args_var.get())
+            self.active_processes.append(p)
+            p.wait()
+
+            done += 1
+            progress = int((done/total)*100)
+            self.root.after(0, lambda v=progress: self.progress.configure(value=v))
+
+        # ===== AUTO-REFRESH AFTER FINISH =====
+        self.root.after(500, self.refresh_files)
+        self.root.after(600, lambda: self.log_line("✅ Conversion finished. Files auto-refreshed"))
+
+        self.is_running = False
+        self.root.after(0, lambda: self.start_btn.configure(text="Start Conversion"))
+
+
+    # ================= REFRESH =================
+
+    def refresh_files(self):
+        if not self.current_folder:
+            return
+
+        self.load_files(self.ext_filter.get())
+        self.log_line("🔄 File list refreshed")
+
+
+    # ================= LOG =================
+
+    def log_line(self, msg):
+        self.log.insert("end", msg + "\n")
+        self.log.see("end")
+
+
+    # ================= CLEAN SHUTDOWN =================
 
     def on_close(self):
         running = [p for p in self.active_processes if p.poll() is None]
@@ -316,31 +414,32 @@ class FFmpegGUI:
                 except:
                     pass
 
+        self.stop_folder_watcher()
         self.root.destroy()
 
-    def toggle_start(self):
-        if not getattr(self, "is_running", False):
-            self.start_conversion()
-        else:
-            self.stop_conversion()
+    def update_active_args(self, event=None):
+        display_name = self.preset_box.get()
+        if not display_name:
+            return  
 
-    def start_conversion(self):
-        self.is_running = True
-        self.start_btn.configure(text="Stop Conversion")
-        self.start()  # calls your existing start() worker
+        preset_key = display_name.split("::", 1)[1].strip()
+        if preset_key not in self.presets:
+            return  
 
-    def stop_conversion(self):
-        self.is_running = False
-        self.start_btn.configure(text="Start Conversion")
+        args = self.presets[preset_key]["args"]
+        self.active_args_var.set(args)  
 
-        for p in self.active_processes:
+        if not self.estimate_size_var.get():
+            return  
+
+        for i, f in enumerate(self.files):
             try:
-                os.kill(p.pid, signal.CTRL_BREAK_EVENT)
-            except:
-                try:
-                    os.kill(p.pid, signal.SIGTERM)
-                except:
-                    pass
+                duration = get_duration(f["path"])
+                est = estimate_size_mb(duration, args)  
 
-        self.active_processes.clear()
-        self.log_line("⛔ Conversion stopped by user")
+                row_id = self.tree.get_children()[i]
+                vals = list(self.tree.item(row_id, "values"))
+                vals[8] = est if est else ""
+                self.tree.item(row_id, values=vals)
+            except:
+                pass
