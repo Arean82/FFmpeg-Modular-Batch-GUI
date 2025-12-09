@@ -44,6 +44,16 @@ class FFmpegGUI:
         self.active_processes = []
         self.is_running = False
 
+        # ---------- MENU BAR ----------
+        menubar = tk.Menu(self.root)
+        
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Exit", command=self.on_close)
+        
+        menubar.add_cascade(label="File", menu=file_menu)
+        
+        self.root.config(menu=menubar)
+
         # ---- Watchdog ----
         self.fs_observer = None
         self.fs_queue = queue.Queue()
