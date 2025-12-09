@@ -1,63 +1,60 @@
-Perfect — here’s a **polished, icon-rich, badge-style README** you can directly paste into your repo to make it look modern and attractive. I’ve kept it clean, professional, and “GitHub-worthy” with emojis, badges, and visual structure:
 
----
 
 ```markdown
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Arean82/FFmpeg-Modular-Batch-GUI/main/assets/logo.png" width="140" alt="FFmpeg Modular Batch GUI Logo">
-</p>
+# 🎬 FFmpeg Modular Batch GUI
 
-<h1 align="center">FFmpeg Modular Batch GUI</h1>
+A **modular, preset-driven, batch FFmpeg GUI** built with **Python & Tkinter** for fast, reliable, and user-friendly media processing.
 
-<p align="center">
-  <b>A powerful, modular, preset-based FFmpeg batch conversion GUI built with Python & Tkinter</b>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.9%2B-blue.svg">
-  <img src="https://img.shields.io/badge/Platform-Windows-blue.svg">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg">
-  <img src="https://img.shields.io/badge/FFmpeg-Required-red.svg">
-</p>
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Platform](https://img.shields.io/badge/Platform-Windows-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-red)
 
 ---
 
 ## 🧾 Overview
 
-**FFmpeg Modular Batch GUI** is a desktop application that simplifies complex FFmpeg batch operations using a clean graphical interface.  
-It is designed for **bulk video processing, stream copy, GPU encoding (Intel QSV), audio extraction, and resolution scaling** — all without touching the command line.
+**FFmpeg Modular Batch GUI** is designed to simplify complex FFmpeg batch workflows using a clean graphical interface.  
+It supports **bulk conversion, stream copy, GPU acceleration, audio extraction, resolution scaling**, and more — without needing to type FFmpeg commands manually.
+
+The application is built with a **modular architecture**, making it easy to extend with new presets and features in future updates.
 
 ---
 
-## ✨ Key Features
+## ✅ Key Features
 
-✅ Folder-based batch processing  
-✅ Checkbox-based file selection  
-✅ Preset-driven FFmpeg commands  
-✅ **Intel QSV GPU Acceleration** ⚡  
-✅ Stream copy / rewrap (ultra-fast)  
-✅ Audio-only extraction (AAC / MP3, etc.)  
-✅ Per-file output resolution & format  
-✅ Real-time FFmpeg console logs  
-✅ Live progress tracking  
-✅ Output file renaming  
-✅ Safe exit with running-process protection  
-✅ Modular, expandable architecture  
+🧩 Modular, extendable architecture  
+📁 Folder-based batch processing  
+✅ Checkbox file selection  
+🎛 Preset-based FFmpeg commands  
+⚡ Intel QSV GPU encoding support  
+🔁 Direct stream copy & rewrap (no re-encode)  
+🎧 Audio-only extraction  
+📏 Per-file output resolution selection  
+📦 Per-file output format selection  
+📝 Live FFmpeg console logs in GUI  
+📊 Progress bar with real-time updates  
+✏️ Editable output file names  
+📂 Single output folder per session  
+⚠️ Warns on close if encoding is running  
+🛑 Kills FFmpeg process on forced exit  
+🗂 Preset categorization (Copy / GPU / CPU / Audio / Fix / LowBW)
 
 ---
 
 ## 🎯 Use Cases
 
-- 🎬 Bulk video conversion  
-- 📦 Rewrapping `.ts` → `.mp4` without re-encoding  
-- 🔊 Audio extraction from videos  
-- ⚡ GPU-accelerated encoding  
-- 🧪 Fixing corrupted or problem media  
-- 📺 Batch resolution downscaling  
+🎬 Bulk video conversion  
+📦 Rewrapping `.ts` → `.mp4` without quality loss  
+🔊 Extracting audio from video files  
+⚡ GPU-accelerated video encoding  
+🧪 Fixing corrupted or problematic media  
+📺 Batch resolution downscaling  
+📉 Creating low-bandwidth media versions
 
 ---
 
-## 🗂️ Project Structure
+## 🗂 Project Structure
 
 ```
 
@@ -80,13 +77,13 @@ FFmpeg-Modular-Batch-GUI/
 
 ## ⚙️ Requirements
 
-- 🐍 Python **3.9 or newer**
-- 🎥 FFmpeg (QSV-enabled build for GPU encoding)
-- 🪟 Windows 10 / 11
+🐍 Python **3.9+**  
+🎥 FFmpeg (**QSV-enabled build** for GPU encoding)  
+🪟 Windows **10 / 11**
 
 ---
 
-## 🛠️ Installation
+## 🛠 Installation
 
 1. **Clone the repository**
    ```bash
@@ -94,18 +91,15 @@ FFmpeg-Modular-Batch-GUI/
    cd FFmpeg-Modular-Batch-GUI
 ````
 
-2. **Install Python dependencies (if any later added)**
-   *(Currently uses only standard libraries)*
+2. **Download FFmpeg** and ensure it works from command line
 
-3. **Download FFmpeg**
-
-4. **Set FFmpeg path in `config.py`**
+3. **Set FFmpeg path in `config.py`**
 
    ```python
    FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
    ```
 
-5. **Launch the app**
+4. **Run the application**
 
    ```bash
    python main.py
@@ -113,85 +107,83 @@ FFmpeg-Modular-Batch-GUI/
 
 ---
 
-## ▶️ How to Use
+## ▶️ Usage
 
-1. 📁 Select input folder
-2. ✅ Select files using checkboxes
-3. 📐 Choose preset
-4. 📝 Modify output name, format, or resolution (optional)
-5. 📤 Select output folder
+1. 📁 Select an **input folder**
+2. ✅ Choose files using **checkboxes**
+3. 🎛 Select a **preset**
+4. 📏 Adjust **resolution / format / output name** (optional)
+5. 📂 Select **output folder**
 6. ▶️ Click **Start Conversion**
-7. 📊 Monitor progress and logs in real-time
-8. ✅ Completion popup when finished
+7. 📝 Monitor **logs & progress**
+8. ✅ Completion notification when finished
 
-⚠️ If you attempt to close while encoding is running, the app will warn you and safely terminate FFmpeg if forced.
+⚠️ Closing the app while encoding will trigger a **warning** and safely terminate FFmpeg if forced.
 
 ---
 
 ## 🚧 Known Limitations
 
-* Only **Intel QSV** GPU encoding supported
-* No job resume after app restart
-* No NVENC / AMD support (yet)
+* Only **Intel QSV** GPU encoding is supported
+* No job persistence after restart
+* No NVENC or AMD GPU support yet
 
 ---
 
-## 🛣️ Roadmap
+## 🛣 Roadmap
 
-* ⏳ ETA for each file
-* 📝 Export logs to file
-* 🧩 Plugin system for presets
-* 🖼️ Frame preview before conversion
-* 🔁 Resume failed jobs
-* 🎨 Possible Qt-based UI upgrade
+⏳ Estimated time remaining per file
+📝 Export FFmpeg logs to files
+🧩 Plugin-based preset system
+🖼 Frame preview before encoding
+🔁 Resume failed jobs
+🎨 Possible Qt-based UI upgrade
 
 ---
 
 ## 📜 License
 
-Licensed under the **MIT License**.
-See `LICENSE` file for details.
+This project is licensed under the **MIT License**.
+See the `LICENSE` file for details.
 
 ---
 
 ## 🙏 Acknowledgements
 
-* 🎞️ **FFmpeg Team** — backend video engine
-* 🐍 **Python & Tkinter** — GUI framework
-* ❤️ Open-source contributors & testers
+🎞 **FFmpeg Team** — Media processing engine
+🐍 **Python & Tkinter** — GUI framework
+❤️ Open-source contributors & testers
 
 ---
 
 ## 📬 Support & Contributions
 
-* 🐞 Open an **Issue** for bugs or feature requests
-* 🔧 **Pull Requests** are welcome
-* 📄 Include FFmpeg logs for faster debugging
+🐞 Report bugs via **GitHub Issues**
+🔧 **Pull requests are welcome**
+📄 Attach FFmpeg logs for faster debugging
 
 ---
 
-<p align="center">
-  ⭐ If you find this project useful, please consider giving it a star!
-</p>
+⭐ If you find this project useful, please consider giving it a star!
+
 ```
 
 ---
 
-### ✅ What You Can Add for Extra Polish (Optional)
-
-If you want, I can also:
-
-* Add **automatic GitHub Actions status badge**
-* Add **screenshots section (with markdown gallery)**
-* Create a **professional SVG logo**
-* Add **Contributing.md + Issue templates**
+### ✅ What this version guarantees
+- All your **original icon-style features preserved**
+- **Modular** clearly highlighted
+- Clean **professional GitHub formatting**
+- Works perfectly in **dark & light mode**
+- Ready for **public open-source presentation**
 
 ---
 
-If you want, I can now:
+If you want, I can also:
+✅ Add a **Screenshots section**  
+✅ Add an **FAQ / Troubleshooting section**  
+✅ Generate a **CONTRIBUTING.md**  
+✅ Add a **GitHub Actions build badge**
 
-* ✅ **Match this exactly to your existing folder names**
-* ✅ Add a **Screenshots section** (if you upload 1–2 GUI images)
-* ✅ Add a **short “Quick Start” version for beginners**
-
-Tell me what style you prefer — **minimal / professional / flashy dev-tool look**.
+Tell me what you want next 👍
+```
