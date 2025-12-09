@@ -7,22 +7,19 @@ from presets import load_presets
 from file_manager import scan_folder, get_resolution, get_duration
 from ffmpeg_runner import run_ffmpeg
 from ui_preset_editor import PresetEditor
+from estimations import estimate_size_mb   # ✅ USE CENTRAL MODULE ONLY
 
 
 class FFmpegGUI:
     def __init__(self, root):
 
-        # ---------- ACTIVE ARGS DISPLAY VAR ----------
-        self.active_args_var = tk.StringVar()
-
         self.root = root
         self.presets = load_presets()
-        self.files = []   # {path, use, out_name}
+        self.files = []
         self.current_folder = None
-        self.output_dir = None  # common for the session
+        self.output_dir = None
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.active_processes = []
-
 
         # ---------- TOP BAR ----------
         top = ttk.Frame(root)
@@ -38,7 +35,10 @@ class FFmpegGUI:
         filt.pack(fill="x", pady=2)
 
         ttk.Label(filt, text="Show only:").pack(side="left")
-        self.ext_filter = ttk.Combobox(filt, values=["all", "ts", "mp4", "mkv", "avi", "mov"], width=8, state="readonly")
+        self.ext_filter = ttk.Combobox(
+            filt, values=["all", "ts", "mp4", "mkv", "avi", "mov"],
+            width=8, state="readonly"
+        )
         self.ext_filter.current(0)
         self.ext_filter.pack(side="left", padx=5)
         self.ext_filter.bind("<<ComboboxSelected>>", self.apply_filter)
@@ -49,41 +49,50 @@ class FFmpegGUI:
         self.out_entry.pack(side="left")
         ttk.Button(filt, text="Browse", command=self.browse_output).pack(side="left", padx=5)
 
-        # ---------- FILE TABLE (SIDE-BY-SIDE IO) ----------
-        self.tree = ttk.Treeview(root, columns=("use", "in", "out", "ext", "res", "op_res", "op_fmt"), show="headings", selectmode="none")
-        self.tree.heading("use", text="Use")
-        self.tree.heading("in", text="Input File")
-        self.tree.heading("out", text="Output File Name")
-        self.tree.heading("ext", text="Ext")
-        self.tree.heading("res", text="Resolution")
-        self.tree.heading("op_res", text="Output Resolution")
-        self.tree.heading("op_fmt", text="Output Format")
+        self.auto_subfolder_var = tk.BooleanVar(value=False)
+        self.estimate_size_var = tk.BooleanVar(value=False)
 
-        self.tree.column("use", width=50, anchor="center")
-        self.tree.column("in", width=320)
-        self.tree.column("out", width=320)
-        self.tree.column("ext", width=70, anchor="center")
-        self.tree.column("res", width=110, anchor="center")
-        self.tree.column("op_res", width=140, anchor="center")
-        self.tree.column("op_fmt", width=90, anchor="center")
+        opts = ttk.Frame(root)
+        opts.pack(fill="x", padx=8, pady=2)
+
+        ttk.Checkbutton(
+            opts, text="Auto-create /converted subfolder",
+            variable=self.auto_subfolder_var
+        ).pack(side="left", padx=5)
+
+        ttk.Checkbutton(
+            opts, text="Estimate output size",
+            variable=self.estimate_size_var
+        ).pack(side="left", padx=15)
+
+        # ---------- FILE TABLE ----------
+        self.tree = ttk.Treeview(
+            root,
+            columns=("use", "in", "out", "ext", "res", "op_res", "op_fmt", "cur_size", "est_size"),
+            show="headings",
+            selectmode="none"
+        )
+
+        for col, text, width in [
+            ("use", "Use", 50),
+            ("in", "Input File", 320),
+            ("cur_size", "Current Size (MB)", 120),
+            ("ext", "Ext", 70),
+            ("out", "Output File Name", 320),
+            ("res", "Resolution", 110),
+            ("op_res", "Output Resolution", 140),
+            ("op_fmt", "Output Format", 90),
+            ("est_size", "Est. Output (MB)", 130)
+        ]:
+            self.tree.heading(col, text=text)
+            self.tree.column(col, width=width, anchor="center")
+
         self.tree.pack(fill="both", expand=True)
 
         self.tree.bind("<Button-1>", self.toggle_checkbox)
-        self.tree.bind("<Double-1>", self.edit_output_name)
-        self.tree.bind("<Double-1>", self.edit_output_resolution, add="+")
-        self.tree.bind("<Double-1>", self.edit_output_format, add="+")
-
-        # ---------- ACTIVE PRESET ARGS DISPLAY ----------
-        args_frame = ttk.Frame(self.root)
-        args_frame.pack(fill="x", padx=8)
-
-        ttk.Label(args_frame, text="Active FFmpeg Args:").pack(side="left")
-
-        self.active_args_var = tk.StringVar()
-        self.active_args_entry = ttk.Entry(
-            args_frame, textvariable=self.active_args_var, state="readonly"
-        )
-        self.active_args_entry.pack(side="left", fill="x", expand=True, padx=5)
+        #self.tree.bind("<Double-1>", self.edit_output_name)
+        #self.tree.bind("<Double-1>", self.edit_output_resolution, add="+")
+        #self.tree.bind("<Double-1>", self.edit_output_format, add="+")
 
         # ---------- PRESETS ----------
         sorted_presets = sorted(
@@ -91,12 +100,8 @@ class FFmpegGUI:
             key=lambda x: (x[1].get("category", ""), x[0])
         )
 
-        # ✅ VARIABLE-BACKED COMBOBOX (NO EVENT RELIANCE)
-        self.preset_var = tk.StringVar()
-
         self.preset_box = ttk.Combobox(
             root,
-            textvariable=self.preset_var,
             values=[f"{v.get('category','Other')} :: {k}" for k, v in sorted_presets],
             state="readonly"
         )
@@ -105,38 +110,57 @@ class FFmpegGUI:
             self.preset_box.current(0)
 
         self.preset_box.pack(fill="x", pady=4)
-
-        # ✅ FORCE UPDATE WHENEVER VALUE CHANGES
-        self.preset_var.trace_add("write", lambda *a: self.update_active_args())
-
-        # ✅ INITIAL DISPLAY
-        self.update_active_args()
-
-
-        # initialize display
-        if self.preset_box.get():
-            preset_key = self.preset_box.get().split("::", 1)[1].strip()
-            self.active_args_var.set(
-                self.presets[preset_key]["args"]
-            )
-
-        # update when preset changes
         self.preset_box.bind("<<ComboboxSelected>>", self.update_active_args)
+
+        # ---------- ACTIVE PRESET ARGS ----------
+        args_frame = ttk.Frame(self.root)
+        args_frame.pack(fill="x", padx=8, pady=4)
+
+        ttk.Label(args_frame, text="Active FFmpeg Args:").pack(side="left")
+
+        self.active_args_var = tk.StringVar()
+        self.active_args_entry = ttk.Entry(
+            args_frame,
+            textvariable=self.active_args_var,
+            state="readonly"
+        )
+        self.active_args_entry.pack(side="left", fill="x", expand=True, padx=5)
+
+        # ---------- START BUTTON ----------
+        #ttk.Button(root, text="Start Conversion", command=self.start).pack(pady=6)
+        ttk.Button(root, text="Start Conversion", command=self.toggle_start).pack(pady=6)
+
+        # ---------- PROGRESS BAR ----------
+        self.progress = ttk.Progressbar(root, length=500)
+        self.progress.pack(pady=4)
+        self.progress.configure(maximum=100)
 
         # ---------- GUI CONSOLE ----------
         log_frame = ttk.LabelFrame(self.root, text="FFmpeg Console")
-        log_frame.pack(fill="both", expand=False, padx=8, pady=6)
+        log_frame.pack(fill="both", expand=True, padx=8, pady=6)
 
         self.log = tk.Text(log_frame, height=10, wrap="word")
         self.log.pack(fill="both", expand=True)
 
+        # ---------- INITIAL DISPLAY ----------
+        self.update_active_args()
 
     # ---------------- Presets ----------------
     def refresh_presets(self):
         self.presets = load_presets()
-        self.preset_box["values"] = list(self.presets.keys())
-        if self.presets:
+        sorted_presets = sorted(
+            self.presets.items(),
+            key=lambda x: (x[1].get("category", ""), x[0])
+        )
+
+        self.preset_box["values"] = [
+            f"{v.get('category','Other')} :: {k}" for k, v in sorted_presets
+        ]
+
+        if sorted_presets:
             self.preset_box.current(0)
+
+        self.update_active_args()
 
     def open_preset_editor(self):
         PresetEditor(self.root, self.presets, self.refresh_presets)
@@ -153,38 +177,63 @@ class FFmpegGUI:
         folder = filedialog.askdirectory()
         if not folder:
             return
+
         self.current_folder = folder
+
+        if not self.output_dir:
+            self.output_dir = folder
+            self.out_var.set(folder)
+
         self.load_files("all")
 
     def load_files(self, ext_filter):
-        paths = scan_folder(self.current_folder)
-        self.files = []
         self.tree.delete(*self.tree.get_children())
+        self.files.clear()
+
+        paths = scan_folder(self.current_folder)
 
         for p in paths:
-            name = os.path.basename(p)
+            if not p or not os.path.exists(p):
+                continue
+
+            name = os.path.basename(p).strip()
+            if not name:
+                continue
+
             base, ext = os.path.splitext(name)
-            if not base.strip():
-                base = name       # fallback safety       
             ext_clean = ext.lstrip(".").lower()
+
             if ext_filter != "all" and ext_clean != ext_filter:
                 continue
 
-            res = get_resolution(p)
+            try:
+                res = get_resolution(p)
+            except:
+                res = "unknown"
+
+            try:
+                cur_size = round(os.path.getsize(p) / (1024 * 1024), 2)
+            except:
+                cur_size = "?"
+
             item = {
                 "path": p,
                 "use": True,
                 "out": base,
                 "op_res": "Same",
-                "op_fmt": ext_clean   # default = same as input format
+                "op_fmt": ext_clean
             }
 
-
             self.files.append(item)
-            self.tree.insert(
-                "", "end",
-                values=("✔", base, base, ext, res, "Same", ext_clean)
+
+            row = (
+                "✔", base, base, f".{ext_clean}",
+                res, "Same", ext_clean,
+                cur_size, ""
             )
+
+            if len(row) == 9:
+                self.tree.insert("", "end", values=row)
 
     def apply_filter(self, event=None):
         if not self.current_folder:
@@ -221,107 +270,33 @@ class FFmpegGUI:
         vals[0] = "✔" if self.files[idx]["use"] else ""
         self.tree.item(row, values=vals)
 
-    # ---------------- Rename Output (Side-by-Side) ----------------
-    def edit_output_name(self, event):
-        col = self.tree.identify_column(event.x)
-        if col != "#3":  # Output column
-            return
-        row = self.tree.identify_row(event.y)
-        idx = self.tree.index(row)
-        x, y, w, h = self.tree.bbox(row, col)
-
-        entry = ttk.Entry(self.root)
-        entry.place(x=x, y=y, width=w, height=h)
-        entry.insert(0, self.files[idx]["out"])
-        entry.focus()
-
-        def save_edit(event=None):
-            new = entry.get().strip()
-            if new:
-                self.files[idx]["out"] = new
-                vals = list(self.tree.item(row, "values"))
-                vals[2] = new
-                self.tree.item(row, values=vals)
-            entry.destroy()
-
-        entry.bind("<Return>", save_edit)
-        entry.bind("<FocusOut>", save_edit)
-
-    # ---------------- Start Conversion (FIXED) ----------------
-
-    def start(self):
-        selected = [f for f in self.files if f["use"]]
-        if not selected:
-            messagebox.showerror("Error", "No files selected")
+    # ---------------- ACTIVE PRESET + ESTIMATE ----------------
+    def update_active_args(self, event=None):
+        display_name = self.preset_box.get()
+        if not display_name:
             return
 
-        preset_name = self.preset_box.get()
-        if not preset_name:
-            messagebox.showerror("Error", "No preset selected")
+        preset_key = display_name.split("::", 1)[1].strip()
+        if preset_key not in self.presets:
             return
 
-        preset_key = preset_name.split("::", 1)[1].strip()
-        base_args = self.presets[preset_key]["args"]
+        args = self.presets[preset_key]["args"]
+        self.active_args_var.set(args)
 
-        out_dir = self.output_dir or self.current_folder
+        if not self.estimate_size_var.get():
+            return
 
-        self.progress.configure(value=0, maximum=100)
-        self.active_processes = []
+        for i, f in enumerate(self.files):
+            try:
+                duration = get_duration(f["path"])
+                est = estimate_size_mb(duration, args)
 
-        def worker():
-            for f in selected:
-                in_path = f["path"]
-
-                # --------- OUTPUT FORMAT ----------
-                in_ext = os.path.splitext(in_path)[1].lstrip(".").lower()
-                out_ext = f.get("op_fmt", "mp4")
-
-                # --------- CONTAINER CONFLICT ----------
-                if "-c copy" in base_args and out_ext != in_ext:
-                    self.log_line("⚠ Copy preset forces original container")
-                    out_ext = in_ext
-
-                out_path = os.path.join(out_dir, f["out"] + "." + out_ext)
-
-                # --------- OUTPUT RESOLUTION ----------
-                args = base_args
-                if f.get("op_res", "Same") != "Same" and "-vf" not in base_args:
-                    args = f'-vf scale={f["op_res"]} ' + args
-                elif f.get("op_res", "Same") != "Same":
-                    self.log_line("⚠ Preset already contains scaling; per-file op_res ignored")
-
-                # --------- GET DURATION ----------
-                try:
-                    duration = get_duration(in_path)
-                except:
-                    duration = 0
-
-                # --------- RUN FFMPEG ----------
-                proc = run_ffmpeg(
-                    in_path,
-                    out_path,
-                    args,
-                    on_log=self.log_line,
-                    on_progress=lambda sec, d=duration: self.root.after(
-                        0,
-                        lambda: self.progress.configure(
-                            value=min(100, (sec / d) * 100) if d else 0
-                        )
-                    )
-                )
-
-                self.active_processes.append(proc)
-                proc.wait()
-
-            # --------- COMPLETION POPUP ----------
-            self.root.after(0, lambda: messagebox.showinfo(
-                "Completed",
-                "All selected video conversions are completed."
-            ))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-
+                row_id = self.tree.get_children()[i]
+                vals = list(self.tree.item(row_id, "values"))
+                vals[8] = est if est else ""
+                self.tree.item(row_id, values=vals)
+            except:
+                pass
 
     def on_close(self):
         running = [p for p in self.active_processes if p.poll() is None]
@@ -334,98 +309,38 @@ class FFmpegGUI:
                 "Do you want to continue?"
             ):
                 return
-            
+
             for p in running:
                 try:
                     os.kill(p.pid, signal.SIGTERM)
                 except:
                     pass
+
         self.root.destroy()
 
-    def log_line(self, text):
-        def append():
-            self.log.insert("end", text + "\n")
-            self.log.see("end")
-        self.root.after(0, append)
+    def toggle_start(self):
+        if not getattr(self, "is_running", False):
+            self.start_conversion()
+        else:
+            self.stop_conversion()
 
+    def start_conversion(self):
+        self.is_running = True
+        self.start_btn.configure(text="Stop Conversion")
+        self.start()  # calls your existing start() worker
 
-    def edit_output_resolution(self, event):
-        col = self.tree.identify_column(event.x)
-        if col != "#6":   # op_res column
-            return
+    def stop_conversion(self):
+        self.is_running = False
+        self.start_btn.configure(text="Start Conversion")
 
-        row = self.tree.identify_row(event.y)
-        idx = self.tree.index(row)
-        x, y, w, h = self.tree.bbox(row, col)
+        for p in self.active_processes:
+            try:
+                os.kill(p.pid, signal.CTRL_BREAK_EVENT)
+            except:
+                try:
+                    os.kill(p.pid, signal.SIGTERM)
+                except:
+                    pass
 
-        combo = ttk.Combobox(
-            self.root,
-            values=[
-                "Same",
-                "426x240",
-                "640x360",
-                "854x480",
-                "1280x720",
-                "1920x1080"
-            ],
-            state="readonly"
-        )
-        combo.place(x=x, y=y, width=w, height=h)
-        combo.set(self.files[idx]["op_res"])
-        combo.focus()
-
-        def save(_=None):
-            val = combo.get()
-            self.files[idx]["op_res"] = val
-
-            vals = list(self.tree.item(row, "values"))
-            vals[5] = val
-            self.tree.item(row, values=vals)
-            combo.destroy()
-
-        combo.bind("<<ComboboxSelected>>", save)
-        combo.bind("<FocusOut>", save)
-
-    def edit_output_format(self, event):
-        col = self.tree.identify_column(event.x)
-        if col != "#7":   # Output format column
-            return
-
-        row = self.tree.identify_row(event.y)
-        idx = self.tree.index(row)
-        x, y, w, h = self.tree.bbox(row, col)
-
-        combo = ttk.Combobox(
-            self.root,
-            values=["mp4", "mkv", "ts", "avi", "mov"],
-            state="readonly"
-        )
-        combo.place(x=x, y=y, width=w, height=h)
-        combo.set(self.files[idx]["op_fmt"])
-        combo.focus()
-
-        def save(_=None):
-            val = combo.get()
-            self.files[idx]["op_fmt"] = val
-            vals = list(self.tree.item(row, "values"))
-            vals[6] = val
-            self.tree.item(row, values=vals)
-            combo.destroy()
-
-        combo.bind("<<ComboboxSelected>>", save)
-        combo.bind("<FocusOut>", save)
-
-    def update_active_args(self, event=None):
-        display_name = self.preset_var.get()
-        if not display_name:
-            return  
-
-        preset_key = display_name.split("::", 1)[1].strip()
-        args = self.presets[preset_key]["args"] 
-
-        print("Selected preset key:", preset_key)
-        print("Selected preset args:", args)    
-
-        self.active_args_var.set(args)  
-
-
+        self.active_processes.clear()
+        self.log_line("⛔ Conversion stopped by user")

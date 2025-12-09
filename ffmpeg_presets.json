@@ -5,8 +5,7 @@
   },
   "Direct Copy (Fastest, No Re-encode)": {
     "args": "-c:v copy -c:a copy",
-    "desc": "Instant copy, no quality loss",
-    "category": "Copy"
+    "desc": "Instant copy, no quality loss"
   },
   "Direct Copy + Error Correction": {
     "args": "-fflags +discardcorrupt -err_detect ignore_err -c:v copy -c:a copy",
