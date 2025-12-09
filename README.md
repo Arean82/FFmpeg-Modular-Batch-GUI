@@ -131,14 +131,14 @@ FFmpeg-Modular-Batch-GUI/
 ---
 
 ## 🛣 Roadmap
-```
-⏳ Estimated time remaining per file
-📝 Export FFmpeg logs to files
-🧩 Plugin-based preset system
-🖼 Frame preview before encoding
-🔁 Resume failed jobs
-🎨 Possible Qt-based UI upgrade
-```
+
+* ⏳ Estimated time remaining per file
+* 📝 Export FFmpeg logs to files
+* 🧩 Plugin-based preset system
+* 🖼 Frame preview before encoding
+* 🔁 Resume failed jobs
+* 🎨 Possible Qt-based UI upgrade
+
 ---
 
 ## 📜 License
@@ -150,17 +150,17 @@ See the `LICENSE` file for details.
 
 ## 🙏 Acknowledgements
 
-🎞 **FFmpeg Team** — Media processing engine
-🐍 **Python & Tkinter** — GUI framework
-❤️ Open-source contributors & testers
+* 🎞 **FFmpeg Team** — Media processing engine
+* 🐍 **Python & Tkinter** — GUI framework
+* ❤️ Open-source contributors & testers
 
 ---
 
 ## 📬 Support & Contributions
 
-🐞 Report bugs via **GitHub Issues**
-🔧 **Pull requests are welcome**
-📄 Attach FFmpeg logs for faster debugging
+* 🐞 Report bugs via **GitHub Issues**
+* 🔧 **Pull requests are welcome**
+* 📄 Attach FFmpeg logs for faster debugging
 
 
 
