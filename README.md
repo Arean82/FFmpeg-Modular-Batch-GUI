@@ -1,7 +1,7 @@
 
 
-```markdown
-# 🎬 FFmpeg Modular Batch GUI
+
+# 🎬 FFmpeg Modular Batch GUI (Python + Tkinter)
 
 A **modular, preset-driven, batch FFmpeg GUI** built with **Python & Tkinter** for fast, reliable, and user-friendly media processing.
 
@@ -10,7 +10,7 @@ A **modular, preset-driven, batch FFmpeg GUI** built with **Python & Tkinter** f
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-red)
 
----
+
 
 ## 🧾 Overview
 
