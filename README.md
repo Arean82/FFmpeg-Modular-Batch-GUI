@@ -26,6 +26,7 @@ Designed for fast **bulk conversion**, **stream copy**, **Intel QSV GPU encoding
 - ⚠️ **Warns on close if encoding is running**
 - 🛑 **Kills FFmpeg process on forced exit**
 - 🗂 **Preset categorization (Copy / GPU / CPU / Audio / Fix / LowBW)**
+- **Modular Architecture**
 
 
 
