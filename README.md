@@ -89,7 +89,7 @@ FFmpeg-Modular-Batch-GUI/
    ```bash
    git clone https://github.com/Arean82/FFmpeg-Modular-Batch-GUI.git
    cd FFmpeg-Modular-Batch-GUI
-````
+   ```
 
 2. **Download FFmpeg** and ensure it works from command line
 
@@ -162,28 +162,5 @@ See the `LICENSE` file for details.
 🔧 **Pull requests are welcome**
 📄 Attach FFmpeg logs for faster debugging
 
----
 
-⭐ If you find this project useful, please consider giving it a star!
 
-```
-
----
-
-### ✅ What this version guarantees
-- All your **original icon-style features preserved**
-- **Modular** clearly highlighted
-- Clean **professional GitHub formatting**
-- Works perfectly in **dark & light mode**
-- Ready for **public open-source presentation**
-
----
-
-If you want, I can also:
-✅ Add a **Screenshots section**  
-✅ Add an **FAQ / Troubleshooting section**  
-✅ Generate a **CONTRIBUTING.md**  
-✅ Add a **GitHub Actions build badge**
-
-Tell me what you want next 👍
-```
