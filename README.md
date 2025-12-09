@@ -1,6 +1,3 @@
-# FFmpeg-Modular-Batch-GUI
-
-
 
 # 🎬 FFmpeg Modular Batch GUI (Python + Tkinter)
 
