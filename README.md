@@ -131,14 +131,14 @@ FFmpeg-Modular-Batch-GUI/
 ---
 
 ## 🛣 Roadmap
-
+```
 ⏳ Estimated time remaining per file
 📝 Export FFmpeg logs to files
 🧩 Plugin-based preset system
 🖼 Frame preview before encoding
 🔁 Resume failed jobs
 🎨 Possible Qt-based UI upgrade
-
+```
 ---
 
 ## 📜 License
