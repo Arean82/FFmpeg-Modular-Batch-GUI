@@ -1,8 +1,5 @@
 # FFmpeg-Modular-Batch-GUI
 
-Here is a **clean, professional `README.md`** you can directly paste into your GitHub repo. It reflects exactly what your app does now (presets, batch, GUI, progress, logs, Intel QSV, etc.).
-
----
 
 ```md
 # 🎬 FFmpeg Modular Batch GUI (Python + Tkinter)
