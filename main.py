@@ -1,16 +1,15 @@
 # main.py
-# Entry point for FFmpeg Modular GUI Application
+# Qt6 Entry Point for FFmpeg Modular GUI Application
 
-import tkinter as tk
-from ui_main import FFmpegGUI
+import sys
+from PySide6.QtWidgets import QApplication
+from qt_main import FFmpegQt   # this is the Qt window I gave you earlier
+
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    root.title("FFmpeg Modular GUI")
+    app = QApplication(sys.argv)
 
-    # ✅ Fullscreen modes — choose ONE:
-    root.state("zoomed")              # Windowed fullscreen (recommended)
-    # root.attributes("-fullscreen", True)  # True borderless fullscreen
+    window = FFmpegQt()
+    window.showMaximized()     # Qt equivalent of fullscreen windowed
 
-    FFmpegGUI(root)
-    root.mainloop()
+    sys.exit(app.exec())
