@@ -7,6 +7,8 @@ import sys
 # Suppress AT-SPI / dbind accessibility warnings when running under non-root / sudo environments
 os.environ.setdefault("NO_AT_SPI", "1")
 os.environ.setdefault("QT_ACCESSIBILITY", "0")
+# Allow Chromium / QtWebEngine to initialize safely when executing as root or in elevated environments
+os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
 import shlex
 import subprocess

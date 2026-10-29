@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1180</width>
+    <width>1351</width>
     <height>820</height>
    </rect>
   </property>
@@ -35,7 +35,6 @@
       <property name="currentIndex">
        <number>0</number>
       </property>
-      <!-- TAB 1: BATCH PROCESSING -->
       <widget class="QWidget" name="tabBatchProcessing">
        <attribute name="title">
         <string>Batch Processing</string>
@@ -59,9 +58,8 @@
         <item>
          <widget class="QSplitter" name="mainSplitter">
           <property name="orientation">
-           <enum>Qt::Vertical</enum>
+           <enum>Qt::Orientation::Vertical</enum>
           </property>
-          <!-- Top Panel: Queue Toolbar & Table -->
           <widget class="QWidget" name="topPanel" native="true">
            <layout class="QVBoxLayout" name="topLayout">
             <property name="leftMargin">
@@ -115,51 +113,51 @@
               </item>
               <item>
                <widget class="QPushButton" name="btnMoveUp">
-                <property name="text">
-                 <string>▲ Up</string>
-                </property>
                 <property name="toolTip">
                  <string>Move selected item up in queue</string>
+                </property>
+                <property name="text">
+                 <string>▲ Up</string>
                 </property>
                </widget>
               </item>
               <item>
                <widget class="QPushButton" name="btnMoveDown">
-                <property name="text">
-                 <string>▼ Down</string>
-                </property>
                 <property name="toolTip">
                  <string>Move selected item down in queue</string>
+                </property>
+                <property name="text">
+                 <string>▼ Down</string>
                 </property>
                </widget>
               </item>
               <item>
                <widget class="QPushButton" name="btnRequeue">
-                <property name="text">
-                 <string>↺ Requeue</string>
-                </property>
                 <property name="toolTip">
                  <string>Reset selected or failed items to Pending</string>
+                </property>
+                <property name="text">
+                 <string>↺ Requeue</string>
                 </property>
                </widget>
               </item>
               <item>
                <widget class="QPushButton" name="btnIncreaseFont">
-                <property name="text">
-                 <string>A+</string>
-                </property>
                 <property name="toolTip">
                  <string>Increase queue table font size</string>
+                </property>
+                <property name="text">
+                 <string>A+</string>
                 </property>
                </widget>
               </item>
               <item>
                <widget class="QPushButton" name="btnDecreaseFont">
-                <property name="text">
-                 <string>A-</string>
-                </property>
                 <property name="toolTip">
                  <string>Decrease queue table font size</string>
+                </property>
+                <property name="text">
+                 <string>A-</string>
                 </property>
                </widget>
               </item>
@@ -202,7 +200,7 @@
               <item>
                <spacer name="queueSpacer">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -224,7 +222,7 @@
             <item>
              <widget class="QTableWidget" name="tableQueue">
               <property name="selectionBehavior">
-               <enum>QAbstractItemView::SelectRows</enum>
+               <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
               </property>
               <property name="sortingEnabled">
                <bool>true</bool>
@@ -278,7 +276,6 @@
             </item>
            </layout>
           </widget>
-          <!-- Bottom Panel: Tools, Parameters, Output & Execution -->
           <widget class="QWidget" name="bottomPanel" native="true">
            <layout class="QVBoxLayout" name="bottomLayout">
             <property name="leftMargin">
@@ -293,26 +290,25 @@
             <property name="bottomMargin">
              <number>0</number>
             </property>
-            <!-- Quick Tools Toolbar: Try, Trim, Concat, Fade -->
             <item>
              <layout class="QHBoxLayout" name="quickToolsBar">
               <item>
                <widget class="QPushButton" name="btnTryPreset">
-                <property name="text">
-                 <string>▶ Try Preset (10s)</string>
-                </property>
                 <property name="toolTip">
                  <string>Test-encode only 10 seconds to verify parameters before batch encoding</string>
+                </property>
+                <property name="text">
+                 <string>▶ Try Preset (10s)</string>
                 </property>
                </widget>
               </item>
               <item>
                <widget class="QPushButton" name="btnShowConsole">
-                <property name="text">
-                 <string>Terminal Command</string>
-                </property>
                 <property name="toolTip">
                  <string>Preview full FFmpeg command string in a popup or console</string>
+                </property>
+                <property name="text">
+                 <string>Terminal Command</string>
                 </property>
                </widget>
               </item>
@@ -331,56 +327,19 @@
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="btnCropTool">
-                <property name="text">
-                 <string>⬛ Detect Crop...</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnAudioWaveform">
-                <property name="text">
-                 <string>〰 Waveform...</string>
-                </property>
-                <property name="toolTip">
-                 <string>Visualize audio waveform of selected video or audio track</string>
-                </property>
-               </widget>
-              </item>
-              <item>
                <widget class="QPushButton" name="btnScreenCapture">
-                <property name="text">
-                 <string>⏺ Record Screen...</string>
-                </property>
                 <property name="toolTip">
                  <string>Record desktop screen on Linux using x11grab</string>
                 </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnMultiPresetsBatch">
                 <property name="text">
-                 <string>⚡ Multiple Presets...</string>
-                </property>
-                <property name="toolTip">
-                 <string>Run batch conversion with multiple presets sequentially</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnOpenOutputDirQuick">
-                <property name="text">
-                 <string>📁 Output Folder</string>
-                </property>
-                <property name="toolTip">
-                 <string>Open active destination folder in file manager</string>
+                 <string>⏺ Record Screen...</string>
                 </property>
                </widget>
               </item>
               <item>
                <spacer name="quickToolsSpacer">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -390,11 +349,31 @@
                 </property>
                </spacer>
               </item>
-              <!-- Fade In/Out Controls -->
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_2">
               <item>
                <widget class="QLabel" name="lblFade">
                 <property name="text">
                  <string>Fade (s):</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnMultiPresetsBatch">
+                <property name="toolTip">
+                 <string>Run batch conversion with multiple presets sequentially</string>
+                </property>
+                <property name="text">
+                 <string>⚡ Multiple Presets...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QDoubleSpinBox" name="spinFadeVideoIn">
+                <property name="singleStep">
+                 <double>0.500000000000000</double>
                 </property>
                </widget>
               </item>
@@ -406,9 +385,19 @@
                </widget>
               </item>
               <item>
-               <widget class="QDoubleSpinBox" name="spinFadeVideoIn">
+               <widget class="QDoubleSpinBox" name="spinFadeAudioIn">
                 <property name="singleStep">
-                 <double>0.5</double>
+                 <double>0.500000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnAudioWaveform">
+                <property name="toolTip">
+                 <string>Visualize audio waveform of selected video or audio track</string>
+                </property>
+                <property name="text">
+                 <string>〰 Waveform...</string>
                 </property>
                </widget>
               </item>
@@ -420,15 +409,37 @@
                </widget>
               </item>
               <item>
-               <widget class="QDoubleSpinBox" name="spinFadeAudioIn">
-                <property name="singleStep">
-                 <double>0.5</double>
+               <widget class="QPushButton" name="btnOpenOutputDirQuick">
+                <property name="toolTip">
+                 <string>Open active destination folder in file manager</string>
+                </property>
+                <property name="text">
+                 <string>📁 Output Folder</string>
                 </property>
                </widget>
               </item>
+              <item>
+               <widget class="QPushButton" name="btnCropTool">
+                <property name="text">
+                 <string>⬛ Detect Crop...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
              </layout>
             </item>
-            <!-- Parameters Box -->
             <item>
              <widget class="QGroupBox" name="grpParameters">
               <property name="title">
@@ -477,21 +488,21 @@
                  </item>
                  <item>
                   <widget class="QCheckBox" name="chkOverwrite">
+                   <property name="toolTip">
+                    <string>Overwrite destination output file if it already exists</string>
+                   </property>
                    <property name="text">
                     <string>Overwrite Existing (-y)</string>
                    </property>
                    <property name="checked">
                     <bool>true</bool>
                    </property>
-                   <property name="toolTip">
-                    <string>Overwrite destination output file if it already exists</string>
-                   </property>
                   </widget>
                  </item>
                  <item>
                   <spacer name="presetSpacer">
                    <property name="orientation">
-                    <enum>Qt::Horizontal</enum>
+                    <enum>Qt::Orientation::Horizontal</enum>
                    </property>
                    <property name="sizeHint" stdset="0">
                     <size>
@@ -507,11 +518,11 @@
                 <layout class="QHBoxLayout" name="paramsInputLayout">
                  <item>
                   <widget class="QLabel" name="lblPreInput">
-                   <property name="text">
-                    <string>Pre-input:</string>
-                   </property>
                    <property name="toolTip">
                     <string>Arguments placed before -i (e.g. -ss 00:01:00 for fast seek)</string>
+                   </property>
+                   <property name="text">
+                    <string>Pre-input:</string>
                    </property>
                   </widget>
                  </item>
@@ -557,7 +568,6 @@
                  </item>
                 </layout>
                </item>
-               <!-- Watermark Overlay Row -->
                <item>
                 <layout class="QHBoxLayout" name="watermarkRowLayout">
                  <item>
@@ -647,7 +657,6 @@
               </layout>
              </widget>
             </item>
-            <!-- Destination Box -->
             <item>
              <widget class="QGroupBox" name="grpDestination">
               <property name="title">
@@ -698,7 +707,6 @@
               </layout>
              </widget>
             </item>
-            <!-- Execution Controls -->
             <item>
              <layout class="QHBoxLayout" name="controlsRowLayout">
               <item>
@@ -757,11 +765,11 @@
                   <height>35</height>
                  </size>
                 </property>
-                <property name="text">
-                 <string>Skip File</string>
-                </property>
                 <property name="toolTip">
                  <string>Skip currently active encoding file and proceed to next in queue</string>
+                </property>
+                <property name="text">
+                 <string>Skip File</string>
                 </property>
                </widget>
               </item>
@@ -776,18 +784,18 @@
                   <height>35</height>
                  </size>
                 </property>
-                <property name="text">
-                 <string>Abort All</string>
-                </property>
                 <property name="toolTip">
                  <string>Immediately terminate all active FFmpeg encoding processes</string>
+                </property>
+                <property name="text">
+                 <string>Abort All</string>
                 </property>
                </widget>
               </item>
               <item>
                <spacer name="ctrlSpacer">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -887,17 +895,16 @@
                 <property name="visible">
                  <bool>false</bool>
                 </property>
-                <property name="text">
-                 <string>Cancel Shutdown (30s)</string>
-                </property>
                 <property name="styleSheet">
                  <string>background-color: #d9534f; color: white; font-weight: bold;</string>
+                </property>
+                <property name="text">
+                 <string>Cancel Shutdown (30s)</string>
                 </property>
                </widget>
               </item>
              </layout>
             </item>
-            <!-- Progress & Logs -->
             <item>
              <widget class="QProgressBar" name="overallProgress">
               <property name="value">
@@ -927,14 +934,11 @@
         </item>
        </layout>
       </widget>
-
-      <!-- TAB 2: STREAM MULTIPLEX -->
       <widget class="QWidget" name="tabStreamMultiplex">
        <attribute name="title">
         <string>Stream Multiplex</string>
        </attribute>
        <layout class="QVBoxLayout" name="tab2Layout">
-        <!-- Top Toolbar -->
         <item>
          <layout class="QHBoxLayout" name="muxTopToolbarLayout">
           <item>
@@ -960,48 +964,48 @@
           </item>
           <item>
            <widget class="QPushButton" name="btnMuxMoveUp">
-            <property name="text">
-             <string>▲ Move Up</string>
-            </property>
             <property name="toolTip">
              <string>Move selected mux job up in queue</string>
+            </property>
+            <property name="text">
+             <string>▲ Move Up</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="btnMuxMoveDown">
-            <property name="text">
-             <string>▼ Move Down</string>
-            </property>
             <property name="toolTip">
              <string>Move selected mux job down in queue</string>
+            </property>
+            <property name="text">
+             <string>▼ Move Down</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="btnMuxSetDefault">
-            <property name="text">
-             <string>★ Toggle Default</string>
-            </property>
             <property name="toolTip">
              <string>Toggle whether the audio track is marked as default in the output</string>
+            </property>
+            <property name="text">
+             <string>★ Toggle Default</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="btnMuxExtractTrack">
-            <property name="text">
-             <string>💾 Save / Extract Track</string>
-            </property>
             <property name="toolTip">
              <string>Extract and save selected audio or subtitle track to disk without re-encoding</string>
+            </property>
+            <property name="text">
+             <string>💾 Save / Extract Track</string>
             </property>
            </widget>
           </item>
           <item>
            <spacer name="muxTopSpacer">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1020,11 +1024,10 @@
           </item>
          </layout>
         </item>
-        <!-- Table -->
         <item>
          <widget class="QTableWidget" name="tableMux">
           <property name="selectionBehavior">
-           <enum>QAbstractItemView::SelectRows</enum>
+           <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
           </property>
           <column>
            <property name="text">
@@ -1073,7 +1076,6 @@
           </column>
          </widget>
         </item>
-        <!-- Configuration & Parameters Panel -->
         <item>
          <widget class="QGroupBox" name="grpMuxConfig">
           <property name="title">
@@ -1178,7 +1180,6 @@
           </layout>
          </widget>
         </item>
-        <!-- Bottom Controls -->
         <item>
          <layout class="QHBoxLayout" name="muxControlsLayout">
           <item>
@@ -1197,7 +1198,7 @@
           <item>
            <spacer name="muxSpacer">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1211,21 +1212,17 @@
         </item>
        </layout>
       </widget>
-
-      <!-- TAB 3: BATCH SUBTITLES -->
       <widget class="QWidget" name="tabSubtitles">
        <attribute name="title">
         <string>Batch Subtitles</string>
        </attribute>
        <layout class="QVBoxLayout" name="tab3Layout">
-        <!-- Configuration GroupBox -->
         <item>
          <widget class="QGroupBox" name="grpSubOptions">
           <property name="title">
            <string>Subtitle Formatting &amp; Embedding Options</string>
           </property>
           <layout class="QVBoxLayout" name="subOptionsMainLayout">
-           <!-- Row 1: Mode & Embedded switch -->
            <item>
             <layout class="QHBoxLayout" name="subModeRowLayout">
              <item>
@@ -1255,7 +1252,7 @@
              <item>
               <spacer name="subModeSpacer">
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1267,7 +1264,6 @@
              </item>
             </layout>
            </item>
-           <!-- Row 2: Styling (Font, Size, Color, Language, Preview) -->
            <item>
             <layout class="QHBoxLayout" name="subStyleRowLayout">
              <item>
@@ -1345,11 +1341,11 @@
              </item>
              <item>
               <widget class="QPushButton" name="btnChooseSubColor">
-               <property name="text">
-                <string>Color: White</string>
-               </property>
                <property name="toolTip">
                 <string>Choose subtitle font primary color</string>
+               </property>
+               <property name="text">
+                <string>Color: White</string>
                </property>
               </widget>
              </item>
@@ -1406,17 +1402,16 @@
              </item>
              <item>
               <widget class="QPushButton" name="btnPreviewSub">
-               <property name="text">
-                <string>👁 Preview (10s)</string>
-               </property>
                <property name="toolTip">
                 <string>Render a 10-second test encode to verify subtitle styling and position</string>
+               </property>
+               <property name="text">
+                <string>👁 Preview (10s)</string>
                </property>
               </widget>
              </item>
             </layout>
            </item>
-           <!-- Row 3: Output destination and format -->
            <item>
             <layout class="QHBoxLayout" name="subDestRowLayout">
              <item>
@@ -1481,7 +1476,6 @@
           </layout>
          </widget>
         </item>
-        <!-- Table Toolbar -->
         <item>
          <layout class="QHBoxLayout" name="subsToolbarLayout">
           <item>
@@ -1529,7 +1523,7 @@
           <item>
            <spacer name="subsToolbarSpacer">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1548,11 +1542,10 @@
           </item>
          </layout>
         </item>
-        <!-- Subtitles Table -->
         <item>
          <widget class="QTableWidget" name="tableSubs">
           <property name="selectionBehavior">
-           <enum>QAbstractItemView::SelectRows</enum>
+           <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
           </property>
           <column>
            <property name="text">
@@ -1591,7 +1584,6 @@
           </column>
          </widget>
         </item>
-        <!-- Action Row -->
         <item>
          <layout class="QHBoxLayout" name="subsBtnLayout">
           <item>
@@ -1610,7 +1602,7 @@
           <item>
            <spacer name="subsBottomSpacer">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1624,14 +1616,11 @@
         </item>
        </layout>
       </widget>
-
-      <!-- TAB 4: BATCH URLS / M3U8 -->
       <widget class="QWidget" name="tabUrls">
        <attribute name="title">
         <string>Batch URLs / Streams</string>
        </attribute>
        <layout class="QVBoxLayout" name="tab4Layout">
-        <!-- Top Input Row -->
         <item>
          <layout class="QHBoxLayout" name="urlInputRow">
           <item>
@@ -1657,8 +1646,6 @@
           </item>
          </layout>
         </item>
-
-        <!-- Options Box -->
         <item>
          <widget class="QGroupBox" name="grpUrlOptions">
           <property name="title">
@@ -1732,27 +1719,25 @@
           </layout>
          </widget>
         </item>
-
-        <!-- Table Toolbar -->
         <item>
          <layout class="QHBoxLayout" name="urlToolbarLayout">
           <item>
            <widget class="QPushButton" name="btnValidateUrls">
-            <property name="text">
-             <string>✔ Validate URLs</string>
-            </property>
             <property name="toolTip">
              <string>Verify connectivity of all links in the queue</string>
+            </property>
+            <property name="text">
+             <string>✔ Validate URLs</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="btnRemoveUrlErrors">
-            <property name="text">
-             <string>Remove Broken</string>
-            </property>
             <property name="toolTip">
              <string>Remove dead/404 URLs from queue</string>
+            </property>
+            <property name="text">
+             <string>Remove Broken</string>
             </property>
            </widget>
           </item>
@@ -1787,7 +1772,7 @@
           <item>
            <spacer name="urlToolbarSpacer">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1806,12 +1791,10 @@
           </item>
          </layout>
         </item>
-
-        <!-- Table -->
         <item>
          <widget class="QTableWidget" name="tableUrls">
           <property name="selectionBehavior">
-           <enum>QAbstractItemView::SelectRows</enum>
+           <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
           </property>
           <column>
            <property name="text">
@@ -1840,8 +1823,6 @@
           </column>
          </widget>
         </item>
-
-        <!-- Action Row -->
         <item>
          <layout class="QHBoxLayout" name="urlActionRow">
           <item>
@@ -1876,7 +1857,7 @@
           <item>
            <spacer name="urlSpacer">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
