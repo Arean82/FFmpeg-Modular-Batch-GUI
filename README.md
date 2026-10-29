@@ -266,7 +266,7 @@ FFmpeg-Modular-Batch-GUI/
 │   ├── readme_viewer.py     # Offline documentation browser (QWebEngineView)
 │   ├── sleep_inhibitor.py   # D-Bus org.freedesktop.ScreenSaver sleep blocker
 │   ├── subs_engine.py       # Subtitle burn-in & soft muxing task
-│   ├── theme_manager.py     # Dynamic Material/Standard QSS switching
+│   ├── theme_manager.py     # Multi-engine theming: Material, PyQtDarkTheme & Native QSS
 │   ├── tokens.py            # Template token interpolator
 │   ├── tonemap_engine.py    # HDR10 to SDR BT.709 color conversion filter graphs
 │   ├── url_engine.py        # yt-dlp online media extractor & format profiles

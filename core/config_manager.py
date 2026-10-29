@@ -27,7 +27,10 @@ DEFAULT_CONFIG = {
     "overwrite_mode": "overwrite",
     "on_finish_action": "none",
     "run_script_enabled": False,
-    "run_script_path": ""
+    "run_script_path": "",
+    "theme_engine": "qss",
+    "theme_mode": "system",
+    "material_theme": "default"
 }
 
 def get_config() -> dict:

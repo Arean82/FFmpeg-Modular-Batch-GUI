@@ -162,22 +162,6 @@
                </widget>
               </item>
               <item>
-               <widget class="QLineEdit" name="txtFilterQueue">
-                <property name="maximumSize">
-                 <size>
-                  <width>180</width>
-                  <height>16777215</height>
-                 </size>
-                </property>
-                <property name="placeholderText">
-                 <string>Filter queue items...</string>
-                </property>
-                <property name="clearButtonEnabled">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item>
                <widget class="QPushButton" name="btnAdvancedFilter">
                 <property name="toolTip">
                  <string>Advanced Queue Filtering &amp; Batch Cleanup</string>
@@ -209,13 +193,6 @@
                  </size>
                 </property>
                </spacer>
-              </item>
-              <item>
-               <widget class="QLabel" name="lblItemCount">
-                <property name="text">
-                 <string>0 items</string>
-                </property>
-               </widget>
               </item>
              </layout>
             </item>
@@ -348,6 +325,29 @@
                  </size>
                 </property>
                </spacer>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="txtFilterQueue">
+                <property name="maximumSize">
+                 <size>
+                  <width>180</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="placeholderText">
+                 <string>Filter queue items...</string>
+                </property>
+                <property name="clearButtonEnabled">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblItemCount">
+                <property name="text">
+                 <string>0 items</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </item>

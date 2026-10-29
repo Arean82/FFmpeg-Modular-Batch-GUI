@@ -9,13 +9,26 @@ os.environ.setdefault("NO_AT_SPI", "1")
 os.environ.setdefault("QT_ACCESSIBILITY", "0")
 # Allow Chromium / QtWebEngine to initialize safely when executing as root or in elevated environments
 os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
+# Avoid portal session registration collisions under non-flatpak environments
+os.environ.setdefault("QT_NO_XDG_DESKTOP_PORTAL", "1")
+
+# Ensure user site-packages are accessible even when launched with sudo / root
+for user_site in [
+    os.path.expanduser("~/.local/lib/python3.14/site-packages"),
+    "/home/arean/.local/lib/python3.14/site-packages",
+    "/home/arean/.local/lib/python3.12/site-packages",
+    "/home/arean/.local/lib/python3.11/site-packages",
+    "/home/arean/.local/lib/python3.10/site-packages",
+]:
+    if os.path.exists(user_site) and user_site not in sys.path:
+        sys.path.insert(0, user_site)
 
 import shlex
 import subprocess
 import time
 
-from PySide6.QtCore import QFile, QIODevice, QObject, QRunnable, QTime, QTimer, Qt, QThreadPool, QUrl, Signal, Slot
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtCore import QEvent, QFile, QIODevice, QObject, QRunnable, QTime, QTimer, Qt, QThreadPool, QUrl, Signal, Slot
+from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -25,6 +38,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFontDialog,
+    QHeaderView,
     QLabel,
     QListWidgetItem,
     QMainWindow,
@@ -120,6 +134,11 @@ class FFBatchApp(QMainWindow):
         self.setup_system_tray()
         self.connect_signals()
 
+        # Re-apply theme dynamically to ensure all newly loaded child UI widgets adopt styling
+        if hasattr(self, 'theme_manager'):
+            self.theme_manager.apply_current_theme(QApplication.instance(), window=self)
+            self._update_theme_menu_checks()
+
         # Queue persistence: crash-recovery file next to main.py
         self._queue_persist_file = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "queue_state.json"
@@ -150,6 +169,8 @@ class FFBatchApp(QMainWindow):
         self.setCentralWidget(self.ui.takeCentralWidget())
         self.setWindowTitle(title)
         self.resize(sz)
+        self.setWindowState(Qt.WindowMaximized)
+        self.auto_scale_fonts_for_display()
 
         # Set Window Icon from ported assets
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
@@ -456,12 +477,12 @@ class FFBatchApp(QMainWindow):
         act_settings.triggered.connect(self.open_settings_dialog)
         tools_menu.addAction(act_settings)
 
-        # 5. Theme Menu (Replicated from Video-Analyse---Rename)
+        # 5. Theme Menu (Master brightness switch + categorized theme suites)
         theme_menu = menubar.addMenu("&Theme 🎨")
         self.mode_actions = {}
         self.material_actions = {}
 
-        # 1. Brightness Mode Actions
+        # 1. Master Brightness Actions
         self.light_mode_action = QAction("☀️ Light", self)
         self.light_mode_action.setCheckable(True)
         self.light_mode_action.triggered.connect(lambda: self.set_selected_mode("light"))
@@ -474,7 +495,7 @@ class FFBatchApp(QMainWindow):
         theme_menu.addAction(self.dark_mode_action)
         self.mode_actions["dark"] = self.dark_mode_action
 
-        self.system_mode_action = QAction("💻 System Default", self)
+        self.system_mode_action = QAction("💻 Follow System OS", self)
         self.system_mode_action.setCheckable(True)
         self.system_mode_action.triggered.connect(lambda: self.set_selected_mode("system"))
         theme_menu.addAction(self.system_mode_action)
@@ -483,13 +504,12 @@ class FFBatchApp(QMainWindow):
         theme_menu.addSeparator()
 
         # 2. Material Themes Submenu
-        material_menu = theme_menu.addMenu("🎨 Material Themes")
-
-        default_action = QAction("Generic / Default (Built-in QSS)", self)
-        default_action.setCheckable(True)
-        default_action.triggered.connect(lambda: self.set_selected_material("default"))
-        material_menu.addAction(default_action)
-        self.material_actions["default"] = default_action
+        material_menu = theme_menu.addMenu("📁 Material Themes")
+        default_mat_action = QAction("Material Default (Generic)", self)
+        default_mat_action.setCheckable(True)
+        default_mat_action.triggered.connect(lambda: self.set_selected_material("default"))
+        material_menu.addAction(default_mat_action)
+        self.material_actions["default"] = default_mat_action
         material_menu.addSeparator()
 
         if hasattr(self, 'theme_manager'):
@@ -513,10 +533,12 @@ class FFBatchApp(QMainWindow):
                     action.triggered.connect(lambda checked=False, col=color: self.set_selected_material(col))
                     material_menu.addAction(action)
                     self.material_actions[color] = action
-            else:
-                info_action = QAction("(qt-material not installed - using Default)", self)
-                info_action.setEnabled(False)
-                material_menu.addAction(info_action)
+
+        # 3. Flat Engine (Directly in main menu as single toggle)
+        self.act_theme_pyqtdarktheme = QAction("🎨 PyQtDarkTheme (Modern Flat)", self)
+        self.act_theme_pyqtdarktheme.setCheckable(True)
+        self.act_theme_pyqtdarktheme.triggered.connect(self.set_selected_pyqtdarktheme)
+        theme_menu.addAction(self.act_theme_pyqtdarktheme)
 
         theme_menu.addSeparator()
 
@@ -567,38 +589,58 @@ class FFBatchApp(QMainWindow):
         help_menu.addAction(act_about)
 
     def _update_theme_menu_checks(self):
-        """Update the checkmarks in theme menu for both mode and material selection."""
+        """Update checkmarks across all theme engines and active modes."""
         if hasattr(self, 'theme_manager'):
             current_mode = self.theme_manager.get_theme_mode()
             for mode, action in self.mode_actions.items():
                 action.setChecked(mode == current_mode)
 
+            current_engine = self.theme_manager.get_theme_engine()
             current_mat = self.theme_manager.get_material_theme()
             cur_color = current_mat.replace(".xml", "").replace("dark_", "").replace("light_", "")
+
+            # PyQtDarkTheme toggle check
+            if hasattr(self, 'act_theme_pyqtdarktheme'):
+                self.act_theme_pyqtdarktheme.setChecked(current_engine == "pyqtdarktheme")
+
+            # Material items checks
             for mat_key, action in self.material_actions.items():
-                if current_mat == "default":
-                    action.setChecked(mat_key == "default")
+                if current_engine == "material":
+                    if current_mat == "default":
+                        action.setChecked(mat_key == "default")
+                    else:
+                        action.setChecked(mat_key == cur_color or mat_key == current_mat)
                 else:
-                    action.setChecked(mat_key == cur_color or mat_key == current_mat)
+                    action.setChecked(False)
 
     def set_selected_mode(self, mode: str):
         if hasattr(self, 'theme_manager'):
-            self.theme_manager.set_theme_mode(QApplication.instance(), mode)
+            self.theme_manager.set_theme_mode(QApplication.instance(), mode, window=self)
             self._update_theme_menu_checks()
 
     def set_selected_material(self, material_name: str):
         if hasattr(self, 'theme_manager'):
-            self.theme_manager.set_material_theme(QApplication.instance(), material_name)
+            self.theme_manager.set_engine_and_material(QApplication.instance(), material_name, window=self)
+            self._update_theme_menu_checks()
+
+    def set_selected_pyqtdarktheme(self):
+        if hasattr(self, 'theme_manager'):
+            self.theme_manager.set_engine_pyqtdarktheme(QApplication.instance(), window=self)
             self._update_theme_menu_checks()
 
     def toggle_theme(self):
         if hasattr(self, 'theme_manager'):
-            self.theme_manager.toggle_theme(QApplication.instance())
+            self.theme_manager.toggle_theme(QApplication.instance(), window=self)
             self._update_theme_menu_checks()
 
     def setup_queue_table(self):
         table = self.ui.tableQueue
         table.horizontalHeader().setStretchLastSection(True)
+        # Auto-align column headers and content gracefully across screen resolutions
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        for col_idx in [2, 3, 4, 5, 6, 7, 8]:
+            table.horizontalHeader().setSectionResizeMode(col_idx, QHeaderView.ResizeToContents)
         table.cellDoubleClicked.connect(self.on_queue_cell_double_clicked)
         table.setContextMenuPolicy(Qt.CustomContextMenu)
         table.customContextMenuRequested.connect(self.show_queue_context_menu)
@@ -1850,22 +1892,42 @@ class FFBatchApp(QMainWindow):
         }
         self.queue_items.append(item_data)
 
-        table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
-        table.setItem(row, 1, QTableWidgetItem(os.path.basename(path)))
-        table.setItem(row, 2, QTableWidgetItem("--:--"))
-        table.setItem(row, 3, QTableWidgetItem("Probing..."))
-        table.setItem(row, 4, QTableWidgetItem("Probing..."))
+        it_idx = QTableWidgetItem(str(row + 1))
+        it_idx.setTextAlignment(Qt.AlignCenter)
+        table.setItem(row, 0, it_idx)
+
+        it_name = QTableWidgetItem(os.path.basename(path))
+        table.setItem(row, 1, it_name)
+
+        it_dur = QTableWidgetItem("--:--")
+        it_dur.setTextAlignment(Qt.AlignCenter)
+        table.setItem(row, 2, it_dur)
+
+        it_vcodec = QTableWidgetItem("Probing...")
+        it_vcodec.setTextAlignment(Qt.AlignCenter)
+        table.setItem(row, 3, it_vcodec)
+
+        it_acodec = QTableWidgetItem("Probing...")
+        it_acodec.setTextAlignment(Qt.AlignCenter)
+        table.setItem(row, 4, it_acodec)
 
         size_mb = placeholder_meta["size"] / (1024 * 1024)
-        table.setItem(row, 5, QTableWidgetItem(f"{size_mb:.2f} MB"))
-        table.setItem(row, 6, QTableWidgetItem("-"))
+        it_size = QTableWidgetItem(f"{size_mb:.2f} MB")
+        it_size.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        table.setItem(row, 5, it_size)
+
+        it_est = QTableWidgetItem("-")
+        it_est.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        table.setItem(row, 6, it_est)
 
         prog = QProgressBar()
         prog.setValue(0)
         prog.setTextVisible(True)
         table.setCellWidget(row, 7, prog)
 
-        table.setItem(row, 8, QTableWidgetItem("Pending"))
+        it_status = QTableWidgetItem("Pending")
+        it_status.setTextAlignment(Qt.AlignCenter)
+        table.setItem(row, 8, it_status)
         self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
         self._save_queue_to_disk()
 
@@ -1896,14 +1958,24 @@ class FFBatchApp(QMainWindow):
                 if it_name and it_name.text() == os.path.basename(fpath):
                     dur = meta.get("duration", 0)
                     dur_str = f"{int(dur // 60):02d}:{int(dur % 60):02d}"
-                    self.ui.tableQueue.setItem(r, 2, QTableWidgetItem(dur_str))
-                    self.ui.tableQueue.setItem(r, 3, QTableWidgetItem(meta.get("video_codec", "")))
-                    self.ui.tableQueue.setItem(r, 4, QTableWidgetItem(meta.get("audio_codec", "")))
+                    it_dur = QTableWidgetItem(dur_str)
+                    it_dur.setTextAlignment(Qt.AlignCenter)
+                    self.ui.tableQueue.setItem(r, 2, it_dur)
+
+                    it_vc = QTableWidgetItem(meta.get("video_codec", ""))
+                    it_vc.setTextAlignment(Qt.AlignCenter)
+                    self.ui.tableQueue.setItem(r, 3, it_vc)
+
+                    it_ac = QTableWidgetItem(meta.get("audio_codec", ""))
+                    it_ac.setTextAlignment(Qt.AlignCenter)
+                    self.ui.tableQueue.setItem(r, 4, it_ac)
 
                     args = self.ui.txtParameters.text()
                     est = estimate_size_mb(dur, args)
                     est_text = f"~{est:.1f} MB" if est else "-"
-                    self.ui.tableQueue.setItem(r, 6, QTableWidgetItem(est_text))
+                    it_est = QTableWidgetItem(est_text)
+                    it_est.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.ui.tableQueue.setItem(r, 6, it_est)
                     break
             self._save_queue_to_disk()
 
@@ -5842,6 +5914,30 @@ class FFBatchApp(QMainWindow):
             "<b>Author:</b> Arean<br>"
             "<b>Contact:</b> <a href='mailto:arean@synorastudio.in'>arean@synorastudio.in</a>"
         )
+
+    def changeEvent(self, event):
+        """Enforces maximized window persistence if requested by user."""
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            # If window is unmaximized by a theme stylesheet reload, restore maximized geometry
+            if not self.isMaximized() and not self.isMinimized():
+                QTimer.singleShot(50, self.showMaximized)
+
+    def auto_scale_fonts_for_display(self):
+        """Calculates optimal baseline font size based on screen DPI / resolution."""
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            geom = screen.geometry()
+            # 10pt base for 1080p, slightly scaled for high DPI / 4K without layout breakage
+            h = geom.height()
+            base_pt = 10 if h <= 1080 else (11 if h <= 1440 else 12)
+            font = self.font()
+            font.setPointSize(base_pt)
+            self.setFont(font)
+            if hasattr(self.ui, "tableQueue"):
+                t_font = self.ui.tableQueue.font()
+                t_font.setPointSize(max(9, base_pt - 1))
+                self.ui.tableQueue.setFont(t_font)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
