@@ -109,7 +109,10 @@ For Debian / Ubuntu-based Linux distributions:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip python3-pyside6 ffmpeg yt-dlp qt6-tools-dev-tools libpulse0
+# Ubuntu splits PySide6 into modular component packages
+sudo apt install -y python3 python3-pip python3-pyside6.qtwidgets python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtuitools ffmpeg yt-dlp qt6-tools-dev-tools libpulse0
+# Or install PySide6 via pip:
+# pip install pyside6
 ```
 
 For Arch Linux / Manjaro:
