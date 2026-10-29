@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ExclusionsDialog</class>
+ <widget class="QDialog" name="ExclusionsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>420</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>File Types Exclusion Filter - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainExclusionLayout">
+   <item>
+    <widget class="QCheckBox" name="chkEnableFilter">
+     <property name="text">
+      <string>Enable file exclusion filter when adding folders</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblExclusionDesc">
+     <property name="text">
+      <string>Files with these extensions will be automatically skipped when scanning directories:</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="addExtRow">
+     <item>
+      <widget class="QLineEdit" name="txtNewExt">
+       <property name="placeholderText">
+        <string>Enter extension (e.g. zip, tmp)...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnAddExt">
+       <property name="text">
+        <string>+ Add</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QListWidget" name="listExclusions"/>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="extBtnRow">
+     <item>
+      <widget class="QPushButton" name="btnRemoveExt">
+       <property name="text">
+        <string>Remove Selected</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="extSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnResetDefaults">
+       <property name="text">
+        <string>Reset Defaults</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="exclusionButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,166 +1,85 @@
+# FFmpeg Batch AV Converter (Linux Native)
 
-
-
-# 🎬 FFmpeg Modular Batch GUI (Python + Tkinter)
-
-A **modular, preset-driven, batch FFmpeg GUI** built with **Python & Tkinter** for fast, reliable, and user-friendly media processing.
-
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-red)
-
-
-
-## 🧾 Overview
-
-**FFmpeg Modular Batch GUI** is designed to simplify complex FFmpeg batch workflows using a clean graphical interface.  
-It supports **bulk conversion, stream copy, GPU acceleration, audio extraction, resolution scaling**, and more — without needing to type FFmpeg commands manually.
-
-The application is built with a **modular architecture**, making it easy to extend with new presets and features in future updates.
+A high-performance, native Linux multi-threaded batch audio and video converter ported from FFmpeg Batch AV Converter to PySide6 (Qt for Python) and native Linux FFmpeg/FFprobe.
 
 ---
 
-## ✅ Key Features
+## Highlights & Features
 
-🧩 Modular, extendable architecture  
-📁 Folder-based batch processing  
-✅ Checkbox file selection  
-🎛 Preset-based FFmpeg commands  
-⚡ Intel QSV GPU encoding support  
-🔁 Direct stream copy & rewrap (no re-encode)  
-🎧 Audio-only extraction  
-📏 Per-file output resolution selection  
-📦 Per-file output format selection  
-📝 Live FFmpeg console logs in GUI  
-📊 Progress bar with real-time updates  
-✏️ Editable output file names  
-📂 Single output folder per session  
-⚠️ Warns on close if encoding is running  
-🛑 Kills FFmpeg process on forced exit  
-🗂 Preset categorization (Copy / GPU / CPU / Audio / Fix / LowBW)
+- **Strictly Decoupled UI:** All views, windows, and auxiliary dialogs are built as standard Qt `.ui` XML files fully editable in Qt Designer (`designer-qt6`). Zero hardcoded layout geometry in Python.
+- **Pure Linux Ecosystem:** All Windows dependencies, paths (`C:\`), and executables (`.exe`) have been purged. Operates directly on native Linux paths and system binaries.
+- **Multi-Threaded Queue:** Concurrent encoding powered by `QThreadPool` and `QRunnable` with customizable thread allocation, real-time per-file progress percentage, and speed estimation.
+- **Dynamic Variable Tokens:** Supports parameter templating with variables including `%~n` (basename), `%~x` (extension), `<res>` (resolution), `<vcodec>`, `<acodec>`, and `<source_dir>`.
+- **4 Dedicated Operational Tabs:**
+  1. **Batch Processing:** Full queue encoding with multi-pass, hardware acceleration, watermarking, audio fades, and real-time size estimation.
+  2. **Stream Multiplexing:** Multi-track muxing (video, audio, subtitles) with metadata and language tagging.
+  3. **Batch Subtitles:** Subtitle hardcode burn-in (`-vf subtitles=...`) or soft-embed muxing.
+  4. **Batch URLs / Streams:** Online media extraction and direct remuxing via `yt-dlp` and `ffmpeg`.
 
 ---
 
-## 🎯 Use Cases
+## Integrated Tools & Dialogs
 
-🎬 Bulk video conversion  
-📦 Rewrapping `.ts` → `.mp4` without quality loss  
-🔊 Extracting audio from video files  
-⚡ GPU-accelerated video encoding  
-🧪 Fixing corrupted or problematic media  
-📺 Batch resolution downscaling  
-📉 Creating low-bandwidth media versions
+Accessible via the application menus or shortcut keys:
+
+- **Two-Pass Target Size Calculator (`Ctrl+Shift+T`):** Calculate the exact video bitrate required to fit a target file size (e.g., Discord 25MB, DVD, Email) and automatically configure 2-pass encoding.
+- **Try Current Preset (10s):** Test the active encoding preset on a 10-second segment before committing to full queue conversion.
+- **Terminal Command Preview:** View and copy the exact FFmpeg command string generated for selected queue items.
+- **Trim / Cut Video:** Non-destructive stream cut or precision re-encode by timestamp or frame range.
+- **Join / Concatenate Files:** Merge multiple media files with drag-and-drop reordering using either FFmpeg concat demuxer (stream copy) or concat filter.
+- **Crop & Black Bars Detection:** Automated `cropdetect` filter integration with aspect ratio analysis and custom crop box configuration.
+- **Watermark / Logo Overlay:** Interactive image watermark overlay with 9-point alignment (Top-Left, Center, Bottom-Right, etc.), offset padding, and opacity scaling.
+- **Silence Detector & Remover:** Detects and trims audio silence using FFmpeg `silencedetect` and `silenceremove` filters.
+- **Generate Video Teaser / Trailer:** Generates preview trailers by sampling sequential slices across media duration.
+- **Create Video from Still Images:** Compiles still image sequences or slideshows into video with custom framerates and codecs.
+- **Inspect Media Streams (MediaInfo) (`Ctrl+I`):** In-depth audio/video stream inspector with codec parameters, bitrates, sample rates, channels, and tags.
+- **File Types Exclusion Filter:** Configure media and non-media extension exclusions so batch folder imports skip unwanted files.
+- **Multiple Presets Batch Run:** Sequence multiple encoding presets against the queue simultaneously.
 
 ---
 
-## 🗂 Project Structure
+## Requirements & Dependencies
 
+On Ubuntu / Debian-based distributions:
+
+```bash
+sudo apt update
+sudo apt install -y python3-pyside6 ffmpeg yt-dlp qt6-tools-dev-tools
 ```
 
-FFmpeg-Modular-Batch-GUI/
-│
-├── main.py                 # Application entry point
-├── config.py               # FFmpeg configuration
-├── presets.py              # Preset definitions
-├── file_manager.py         # File scanning & selection
-├── ffmpeg_runner.py        # FFmpeg command executor
-├── ui_main.py              # Main GUI window
-├── ui_tree.py              # File tree view
-├── ui_presets.py           # Preset manager UI
-├── ui_preset_editor.py    # Preset editor
-└── ffmpeg_presets.json    # Default + custom presets
+---
 
-````
+## Launching the Application
+
+### From Terminal:
+
+```bash
+cd /home/arean/Downloads/Other/ffmpeg_batch-master
+./run.sh
+# or
+python3 main.py
+```
+
+### From Desktop Menu:
+The desktop entry is registered at `~/.local/share/applications/ffmpeg-batch-linux.desktop` and appears in your application launcher under **Sound & Video** / **AudioVideo**.
 
 ---
 
-## ⚙️ Requirements
+## Keyboard Shortcuts
 
-🐍 Python **3.9+**  
-🎥 FFmpeg (**QSV-enabled build** for GPU encoding)  
-🪟 Windows **10 / 11**
-
----
-
-## 🛠 Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Arean82/FFmpeg-Modular-Batch-GUI.git
-   cd FFmpeg-Modular-Batch-GUI
-   ```
-
-2. **Download FFmpeg** and ensure it works from command line
-
-3. **Set FFmpeg path in `config.py`**
-
-   ```python
-   FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
-   ```
-
-4. **Run the application**
-
-   ```bash
-   python main.py
-   ```
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl + O` | Add Files to Queue |
+| `Ctrl + R` | Start Queue Processing |
+| `Ctrl + I` | Inspect Media Streams (MediaInfo) |
+| `Ctrl + Shift + T` | Two-Pass Target Size Calculator |
+| `Ctrl + ,` | Application Settings |
+| `F1` | Open Readme / Documentation Viewer |
+| `Delete` | Remove Selected Items from Queue |
+| `Ctrl + Q` | Exit Application |
 
 ---
 
-## ▶️ Usage
+## License
 
-1. 📁 Select an **input folder**
-2. ✅ Choose files using **checkboxes**
-3. 🎛 Select a **preset**
-4. 📏 Adjust **resolution / format / output name** (optional)
-5. 📂 Select **output folder**
-6. ▶️ Click **Start Conversion**
-7. 📝 Monitor **logs & progress**
-8. ✅ Completion notification when finished
-
-⚠️ Closing the app while encoding will trigger a **warning** and safely terminate FFmpeg if forced.
-
----
-
-## 🚧 Known Limitations
-
-* Only **Intel QSV** GPU encoding is supported
-* No job persistence after restart
-* No NVENC or AMD GPU support yet
-
----
-
-## 🛣 Roadmap
-
-* ⏳ Estimated time remaining per file
-* 📝 Export FFmpeg logs to files
-* 🧩 Plugin-based preset system
-* 🖼 Frame preview before encoding
-* 🔁 Resume failed jobs
-* 🎨 Possible Qt-based UI upgrade
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License**.
-See the `LICENSE` file for details.
-
----
-
-## 🙏 Acknowledgements
-
-* 🎞 **FFmpeg Team** — Media processing engine
-* 🐍 **Python & Tkinter** — GUI framework
-* ❤️ Open-source contributors & testers
-
----
-
-## 📬 Support & Contributions
-
-* 🐞 Report bugs via **GitHub Issues**
-* 🔧 **Pull requests are welcome**
-* 📄 Attach FFmpeg logs for faster debugging
-
-
-
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

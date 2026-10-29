@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>WatermarkDialog</class>
+ <widget class="QDialog" name="WatermarkDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>560</width>
+    <height>340</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Watermark &amp; Logo Overlay - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainWatermarkLayout">
+   <item>
+    <widget class="QGroupBox" name="grpWatermarkFile">
+     <property name="title">
+      <string>Watermark / Logo Image</string>
+     </property>
+     <layout class="QHBoxLayout" name="fileRowLayout">
+      <item>
+       <widget class="QLineEdit" name="txtWatermarkPath">
+        <property name="placeholderText">
+         <string>Select PNG or JPG image file...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBrowseWatermark">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpPosition">
+     <property name="title">
+      <string>Position &amp; Margin</string>
+     </property>
+     <layout class="QGridLayout" name="posGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblPos">
+        <property name="text">
+         <string>Placement:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="comboPosition">
+        <item>
+         <property name="text">
+          <string>Bottom-Right Corner</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Bottom-Left Corner</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Top-Right Corner</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Top-Left Corner</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Center</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblMargin">
+        <property name="text">
+         <string>Corner Margin (px):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="spinMargin">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>500</number>
+        </property>
+        <property name="value">
+         <number>20</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblOverlayHelp">
+     <property name="text">
+      <string>Clicking Apply will inject the necessary FFmpeg overlay filter into the parameters.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="watermarkButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Cancel</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>JoinDialog</class>
+ <widget class="QDialog" name="JoinDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>420</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Join / Concatenate Files - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainJoinLayout">
+   <item>
+    <widget class="QLabel" name="lblJoinDesc">
+     <property name="text">
+      <string>Concatenate all selected files from the queue or files listed below into a single video:</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QListWidget" name="listJoinFiles">
+     <property name="dragDropMode">
+      <enum>QAbstractItemView::InternalMove</enum>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="joinListBtnLayout">
+     <item>
+      <widget class="QPushButton" name="btnAddJoinFiles">
+       <property name="text">
+        <string>+ Add Files...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnRemoveJoinFile">
+       <property name="text">
+        <string>Remove</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnMoveUpJoin">
+       <property name="text">
+        <string>▲ Up</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnMoveDownJoin">
+       <property name="text">
+        <string>▼ Down</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="joinListSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnClearJoinFiles">
+       <property name="text">
+        <string>Clear</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpJoinMode">
+     <property name="title">
+      <string>Joining Method</string>
+     </property>
+     <layout class="QVBoxLayout" name="joinModeLayout">
+      <item>
+       <widget class="QRadioButton" name="radStreamCopy">
+        <property name="text">
+         <string>Fast Stream Copy (No re-encoding, files must share identical codecs &amp; resolution)</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radReencode">
+        <property name="text">
+         <string>Re-encode &amp; Concat Filter (Works across different resolutions/codecs)</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="outJoinLayout">
+     <item>
+      <widget class="QLabel" name="lblOutputFile">
+       <property name="text">
+        <string>Output File:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="txtJoinOutput">
+       <property name="placeholderText">
+        <string>/path/to/joined_output.mp4</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnBrowseJoinOutput">
+       <property name="text">
+        <string>Browse...</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="joinButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

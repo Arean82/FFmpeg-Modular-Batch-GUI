@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CropDialog</class>
+ <widget class="QDialog" name="CropDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>560</width>
+    <height>380</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Crop &amp; Black Bars Detection - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainCropLayout">
+   <item>
+    <widget class="QLabel" name="lblCropDesc">
+     <property name="text">
+      <string>Detect and remove black bars using FFmpeg cropdetect filter:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpCropResults">
+     <property name="title">
+      <string>Calculated Parameters</string>
+     </property>
+     <layout class="QFormLayout" name="cropForm">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblFile">
+        <property name="text">
+         <string>Analyzed File:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="lblFileNameVal">
+        <property name="text">
+         <string>None selected</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblCropArgs">
+        <property name="text">
+         <string>Crop Filter:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="txtCropFilter">
+        <property name="placeholderText">
+         <string>-vf crop=w:h:x:y</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="cropActionLayout">
+     <item>
+      <widget class="QPushButton" name="btnRunDetection">
+       <property name="text">
+        <string>▶ Run Auto-Detection</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="cropSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QPlainTextEdit" name="txtCropLog">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="placeholderText">
+      <string>Detection output...</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="cropButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MediaInfoDialog</class>
+ <widget class="QDialog" name="MediaInfoDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>750</width>
+    <height>520</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Media Streams Inspector - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainMediaInfoLayout">
+   <item>
+    <widget class="QGroupBox" name="grpSummary">
+     <property name="title">
+      <string>General File Information</string>
+     </property>
+     <layout class="QGridLayout" name="summaryLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblFileTitle">
+        <property name="text">
+         <string>File:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="lblFilePathVal">
+        <property name="text">
+         <string>None</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblFormatTitle">
+        <property name="text">
+         <string>Format / Container:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="lblFormatVal">
+        <property name="text">
+         <string>-</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblDurationTitle">
+        <property name="text">
+         <string>Duration / Size:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="lblDurationSizeVal">
+        <property name="text">
+         <string>-</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTabWidget" name="infoTabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tabStreams">
+      <attribute name="title">
+       <string>Audio, Video &amp; Subtitle Streams</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="streamsTabLayout">
+       <item>
+        <widget class="QTableWidget" name="tableMediaStreams">
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <column>
+          <property name="text">
+           <string>Stream #</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Type</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Codec</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Details</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Bitrate</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Language</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabJson">
+      <attribute name="title">
+       <string>Raw Metadata (JSON)</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="jsonTabLayout">
+       <item>
+        <widget class="QPlainTextEdit" name="txtRawJson">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="btnActionRow">
+     <item>
+      <widget class="QPushButton" name="btnCopyInfo">
+       <property name="text">
+        <string>Copy to Clipboard</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="infoSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCloseInfo">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

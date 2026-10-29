@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TrimDialog</class>
+ <widget class="QDialog" name="TrimDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>620</width>
+    <height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Trim &amp; Cut Video - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainTrimLayout">
+   <item>
+    <widget class="QGroupBox" name="grpSourceInfo">
+     <property name="title">
+      <string>Target File Information</string>
+     </property>
+     <layout class="QHBoxLayout" name="sourceInfoLayout">
+      <item>
+       <widget class="QLabel" name="lblTrimFileName">
+        <property name="text">
+         <string>File: None selected</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="sourceSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblTotalDuration">
+        <property name="text">
+         <string>Total: 00:00:00</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpTimeSelectors">
+     <property name="title">
+      <string>Cut Points</string>
+     </property>
+     <layout class="QGridLayout" name="timeGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblStartTime">
+        <property name="text">
+         <string>Start Time (-ss):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QTimeEdit" name="timeStart">
+        <property name="displayFormat">
+         <string>HH:mm:ss</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblEndTime">
+        <property name="text">
+         <string>End Time (-to):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QTimeEdit" name="timeEnd">
+        <property name="displayFormat">
+         <string>HH:mm:ss</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblDuration">
+        <property name="text">
+         <string>Cut Duration:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="lblCalculatedDuration">
+        <property name="text">
+         <string>00:00:00</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpSeekMode">
+     <property name="title">
+      <string>Seeking Strategy</string>
+     </property>
+     <layout class="QVBoxLayout" name="seekModeLayout">
+      <item>
+       <widget class="QRadioButton" name="radFastSeek">
+        <property name="text">
+         <string>Fast Keyframe Seeking (Places -ss before -i; instant, cuts at nearest keyframe)</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radAccurateSeek">
+        <property name="text">
+         <string>Frame-Accurate Seeking (Places -ss after -i; exact cut point, slower decode)</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="trimButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

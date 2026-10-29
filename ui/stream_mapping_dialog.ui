@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>StreamMappingDialog</class>
+ <widget class="QDialog" name="StreamMappingDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>720</width>
+    <height>480</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Stream Mapping &amp; Multiplexing</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainStreamLayout">
+   <item>
+    <widget class="QLabel" name="lblStreamDesc">
+     <property name="text">
+      <string>Select which video, audio, and subtitle streams to map or filter:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTableWidget" name="tableStreams">
+     <property name="selectionBehavior">
+      <enum>QAbstractItemView::SelectRows</enum>
+     </property>
+     <column>
+      <property name="text">
+       <string>Include</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Stream #</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Type</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Codec</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Language</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Action</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpQuickOptions">
+     <property name="title">
+      <string>Batch Stream Flags</string>
+     </property>
+     <layout class="QHBoxLayout" name="quickStreamLayout">
+      <item>
+       <widget class="QCheckBox" name="chkMapAllStreams">
+        <property name="text">
+         <string>Map all streams (-map 0)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="chkDropSubs">
+        <property name="text">
+         <string>Discard subtitles (-sn)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="chkCopyAudio">
+        <property name="text">
+         <string>Stream-copy audio (-c:a copy)</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="streamButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

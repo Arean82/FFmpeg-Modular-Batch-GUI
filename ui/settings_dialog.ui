@@ -1,0 +1,509 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingsDialog</class>
+ <widget class="QDialog" name="SettingsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>680</width>
+    <height>520</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Settings - FFmpeg Batch AV Converter</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainDialogLayout">
+   <property name="leftMargin">
+    <number>10</number>
+   </property>
+   <property name="topMargin">
+    <number>10</number>
+   </property>
+   <property name="rightMargin">
+    <number>10</number>
+   </property>
+   <property name="bottomMargin">
+    <number>10</number>
+   </property>
+   <item>
+    <widget class="QTabWidget" name="settingsTabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <!-- Tab 1: General -->
+     <widget class="QWidget" name="tabGeneral">
+      <attribute name="title">
+       <string>General</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="generalTabLayout">
+       <item>
+        <widget class="QGroupBox" name="grpBinaries">
+         <property name="title">
+          <string>Binary Paths (System vs Bleeding-Edge Custom)</string>
+         </property>
+         <layout class="QGridLayout" name="binariesLayout">
+          <!-- FFmpeg -->
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="chkCustomFfmpeg">
+            <property name="text">
+             <string>Custom FFmpeg:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="txtFfmpegPath">
+            <property name="text">
+             <string>/usr/bin/ffmpeg</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="btnBrowseFfmpeg">
+            <property name="text">
+             <string>Browse...</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+
+          <!-- FFprobe -->
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="chkCustomFfprobe">
+            <property name="text">
+             <string>Custom FFprobe:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="txtFfprobePath">
+            <property name="text">
+             <string>/usr/bin/ffprobe</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QPushButton" name="btnBrowseFfprobe">
+            <property name="text">
+             <string>Browse...</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+
+          <!-- yt-dlp -->
+          <item row="2" column="0">
+           <widget class="QCheckBox" name="chkCustomYtdlp">
+            <property name="text">
+             <string>Custom yt-dlp:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="txtYtdlpPath">
+            <property name="text">
+             <string>/usr/bin/yt-dlp</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QPushButton" name="btnBrowseYtdlp">
+            <property name="text">
+             <string>Browse...</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Test Binaries Button & Status Label -->
+          <item row="3" column="0">
+           <widget class="QPushButton" name="btnTestBinaries">
+            <property name="text">
+             <string>Test / Check Versions</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1" colspan="2">
+           <widget class="QLabel" name="lblBinariesStatus">
+            <property name="text">
+             <string>Click 'Test' to check versions.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpUiOptions">
+         <property name="title">
+          <string>UI &amp; Logging</string>
+         </property>
+         <layout class="QVBoxLayout" name="uiOptLayout">
+          <item>
+           <widget class="QCheckBox" name="chkAutoScrollLogs">
+            <property name="text">
+             <string>Auto-scroll console logs during conversion</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkPlayNotification">
+            <property name="text">
+             <string>Play sound alert when queue finishes</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkShowDesktopNotification">
+            <property name="text">
+             <string>Show desktop system notification on completion</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="tab1Spacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <!-- Tab 2: Encoding & Performance -->
+     <widget class="QWidget" name="tabPerformance">
+      <attribute name="title">
+       <string>Encoding &amp; Hardware</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="perfTabLayout">
+       <item>
+        <widget class="QGroupBox" name="grpHardware">
+         <property name="title">
+          <string>Hardware Acceleration (Linux Native)</string>
+         </property>
+         <layout class="QVBoxLayout" name="hwLayout">
+          <item>
+           <layout class="QHBoxLayout" name="hwRowLayout">
+            <item>
+             <widget class="QLabel" name="lblHwAccel">
+              <property name="text">
+               <string>Default Decoder / Accel:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboHwAccel">
+              <item>
+               <property name="text">
+                <string>None (Software CPU - standard)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>VA-API (Intel / AMD GPU)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>NVENC / CUDA (NVIDIA GPU)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Vulkan</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpPriority">
+         <property name="title">
+          <string>Process Priority &amp; System Load</string>
+         </property>
+         <layout class="QVBoxLayout" name="priorityLayout">
+          <item>
+           <layout class="QHBoxLayout" name="priorityRow">
+            <item>
+             <widget class="QLabel" name="lblPriority">
+              <property name="text">
+               <string>Process Niceness (Priority):</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboPriority">
+              <item>
+               <property name="text">
+                <string>Normal (nice 0)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Low / Idle (nice 10 - recommended for multitasking)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Very Low (nice 19)</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkPauseOnBattery">
+            <property name="text">
+             <string>Automatically pause processing when running on laptop battery</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="tab2Spacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <!-- Tab 3: Output & Naming -->
+     <widget class="QWidget" name="tabOutput">
+      <attribute name="title">
+       <string>Output &amp; Naming</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="outputTabLayout">
+       <item>
+        <widget class="QGroupBox" name="grpNaming">
+         <property name="title">
+          <string>File Naming Pattern</string>
+         </property>
+         <layout class="QVBoxLayout" name="namingLayout">
+          <item>
+           <layout class="QHBoxLayout" name="namePatternRow">
+            <item>
+             <widget class="QLabel" name="lblNamePattern">
+              <property name="text">
+               <string>Pattern:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="txtNamingPattern">
+              <property name="text">
+               <string>%~n_converted</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblNamingHelp">
+            <property name="text">
+             <string>Tokens: %~n (filename), %~x (ext), &lt;res&gt; (resolution), &lt;vcodec&gt;, &lt;acodec&gt;</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpOverwrite">
+         <property name="title">
+          <string>Existing Destination Files</string>
+         </property>
+         <layout class="QVBoxLayout" name="overwriteLayout">
+          <item>
+           <widget class="QRadioButton" name="radOverwrite">
+            <property name="text">
+             <string>Overwrite without asking (-y)</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radSkipExisting">
+            <property name="text">
+             <string>Skip encoding if output file already exists (-n)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="tab3Spacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <!-- Tab 4: Post-Task Actions -->
+     <widget class="QWidget" name="tabPostTask">
+      <attribute name="title">
+       <string>Post-Task Actions</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="postTaskLayout">
+       <item>
+        <widget class="QGroupBox" name="grpOnFinish">
+         <property name="title">
+          <string>When Queue Completes</string>
+         </property>
+         <layout class="QVBoxLayout" name="onFinishLayout">
+          <item>
+           <widget class="QRadioButton" name="radActionNone">
+            <property name="text">
+             <string>Do nothing</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radActionSleep">
+            <property name="text">
+             <string>Suspend / Sleep computer (systemctl suspend)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radActionShutdown">
+            <property name="text">
+             <string>Shutdown computer (systemctl poweroff)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpExternalCommand">
+         <property name="title">
+          <string>Run Shell Command / Script</string>
+         </property>
+         <layout class="QHBoxLayout" name="cmdRowLayout">
+          <item>
+           <widget class="QCheckBox" name="chkRunScript">
+            <property name="text">
+             <string>Run script on finish:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="txtScriptPath">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="placeholderText">
+             <string>/path/to/script.sh</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnBrowseScript">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>Browse...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="tab4Spacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="dialogButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

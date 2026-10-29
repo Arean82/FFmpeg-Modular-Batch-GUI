@@ -1,0 +1,4 @@
+# FFmpeg Modular Batch AV Converter Dependencies
+PySide6>=6.5.0
+qt_material>=2.14
+

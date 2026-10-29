@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PresetsDialog</class>
+ <widget class="QDialog" name="PresetsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>780</width>
+    <height>540</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Presets Manager - FFmpeg Batch AV Converter</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainPresetLayout">
+   <item>
+    <widget class="QSplitter" name="presetSplitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="leftWidget" native="true">
+      <layout class="QVBoxLayout" name="leftLayout">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="lblPresetsList">
+         <property name="text">
+          <string>Presets Library:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="listPresets"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="listBtnLayout">
+         <item>
+          <widget class="QPushButton" name="btnNewPreset">
+           <property name="text">
+            <string>+ New</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnDeletePreset">
+           <property name="text">
+            <string>Delete</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="rightWidget" native="true">
+      <layout class="QVBoxLayout" name="rightLayout">
+       <property name="leftMargin">
+        <number>8</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QGroupBox" name="grpPresetDetails">
+         <property name="title">
+          <string>Preset Details</string>
+         </property>
+         <layout class="QFormLayout" name="presetFormLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="lblName">
+            <property name="text">
+             <string>Preset Name:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="txtPresetTitle"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="lblExt">
+            <property name="text">
+             <string>Output Format:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="txtPresetExt">
+            <property name="placeholderText">
+             <string>mp4, mkv, mp3...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblCategory">
+            <property name="text">
+             <string>Category:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="comboPresetCategory">
+            <item>
+             <property name="text">
+              <string>Copy</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>GPU</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>CPU</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Audio</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Fix</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>LowBW</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpCommand">
+         <property name="title">
+          <string>FFmpeg Arguments</string>
+         </property>
+         <layout class="QVBoxLayout" name="cmdBoxLayout">
+          <item>
+           <widget class="QPlainTextEdit" name="txtPresetArgs">
+            <property name="placeholderText">
+             <string>-c:v libx264 -crf 20 -preset slow -c:a aac -b:a 192k</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="presetActionsLayout">
+         <item>
+          <widget class="QPushButton" name="btnApplyToMain">
+           <property name="text">
+            <string>Apply to Main Window</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="actionSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnSavePresetItem">
+           <property name="text">
+            <string>Save Changes</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="presetButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

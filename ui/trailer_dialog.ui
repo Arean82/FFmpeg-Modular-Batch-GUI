@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TrailerDialog</class>
+ <widget class="QDialog" name="TrailerDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Generate Video Teaser / Trailer - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainTrailerLayout">
+   <item>
+    <widget class="QLabel" name="lblTrailerDesc">
+     <property name="text">
+      <string>Automatically extracts periodic short sample clips across the video and stitches them into a teaser trailer:</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpTrailerSettings">
+     <property name="title">
+      <string>Trailer Sampling Options</string>
+     </property>
+     <layout class="QGridLayout" name="trailerGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblSegmentDur">
+        <property name="text">
+         <string>Clip Segment Duration (s):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="spinClipDuration">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>30</number>
+        </property>
+        <property name="value">
+         <number>3</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblInterval">
+        <property name="text">
+         <string>Sample Every (s):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="spinInterval">
+        <property name="minimum">
+         <number>10</number>
+        </property>
+        <property name="maximum">
+         <number>600</number>
+        </property>
+        <property name="value">
+         <number>60</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblSourceFile">
+        <property name="text">
+         <string>Source File:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="lblSourceFileName">
+        <property name="text">
+         <string>None selected in queue</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpTrailerOutput">
+     <property name="title">
+      <string>Output File</string>
+     </property>
+     <layout class="QHBoxLayout" name="trailerOutLayout">
+      <item>
+       <widget class="QLineEdit" name="txtTrailerOutput">
+        <property name="placeholderText">
+         <string>/path/to/video_trailer.mp4</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBrowseTrailerOutput">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="trailerProgress">
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="trailerActionLayout">
+     <item>
+      <widget class="QPushButton" name="btnStartTrailer">
+       <property name="text">
+        <string>▶ Generate Teaser Trailer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="trailerSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCloseTrailer">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

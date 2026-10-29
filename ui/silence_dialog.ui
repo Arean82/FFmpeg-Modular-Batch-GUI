@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SilenceDialog</class>
+ <widget class="QDialog" name="SilenceDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>680</width>
+    <height>480</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Audio Silence Detector &amp; Remover - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainSilenceLayout">
+   <item>
+    <widget class="QGroupBox" name="grpSilenceParams">
+     <property name="title">
+      <string>Detection Parameters</string>
+     </property>
+     <layout class="QHBoxLayout" name="silenceParamsLayout">
+      <item>
+       <widget class="QLabel" name="lblThreshold">
+        <property name="text">
+         <string>Noise Threshold (dB):</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSpinBox" name="spinThreshold">
+        <property name="minimum">
+         <number>-90</number>
+        </property>
+        <property name="maximum">
+         <number>0</number>
+        </property>
+        <property name="value">
+         <number>-30</number>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblMinDuration">
+        <property name="text">
+         <string>Min Silence Duration (s):</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="spinMinDuration">
+        <property name="minimum">
+         <double>0.100000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>60.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.500000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnStartDetection">
+        <property name="text">
+         <string>▶ Detect Silences</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblTargetFile">
+     <property name="text">
+      <string>Analyzing: None selected</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTableWidget" name="tableSilences">
+     <property name="selectionBehavior">
+      <enum>QAbstractItemView::SelectRows</enum>
+     </property>
+     <column>
+      <property name="text">
+       <string>#</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Silence Start (s)</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Silence End (s)</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Duration (s)</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="silenceActionLayout">
+     <item>
+      <widget class="QPushButton" name="btnApplySilenceRemove">
+       <property name="text">
+        <string>Apply 'silenceremove' Filter to Parameters</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="silenceSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCloseSilence">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

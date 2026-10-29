@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AddMuxJobDialog</class>
+ <widget class="QDialog" name="AddMuxJobDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>640</width>
+    <height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Add Multiplexing Job - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainAddMuxLayout">
+   <item>
+    <widget class="QGroupBox" name="grpBaseVideo">
+     <property name="title">
+      <string>1. Base Video File</string>
+     </property>
+     <layout class="QHBoxLayout" name="baseVidLayout">
+      <item>
+       <widget class="QLineEdit" name="txtBaseVideo">
+        <property name="placeholderText">
+         <string>/path/to/base_video.mp4</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBrowseBaseVideo">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpAudioTrack">
+     <property name="title">
+      <string>2. Additional / External Audio Track (Optional)</string>
+     </property>
+     <layout class="QHBoxLayout" name="audioTrackLayout">
+      <item>
+       <widget class="QLineEdit" name="txtAudioTrack">
+        <property name="placeholderText">
+         <string>/path/to/audio_track.m4a (optional)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBrowseAudioTrack">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblAudioLang">
+        <property name="text">
+         <string>Lang:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="comboAudioLang">
+        <item>
+         <property name="text">
+          <string>eng</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>spa</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>fra</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>deu</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>jpn</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>und</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpSubTrack">
+     <property name="title">
+      <string>3. External Subtitle File (Optional)</string>
+     </property>
+     <layout class="QHBoxLayout" name="subTrackLayout">
+      <item>
+       <widget class="QLineEdit" name="txtSubTrack">
+        <property name="placeholderText">
+         <string>/path/to/subtitles.srt (optional)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBrowseSubTrack">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblSubLang">
+        <property name="text">
+         <string>Lang:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="comboSubLang">
+        <item>
+         <property name="text">
+          <string>eng</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>spa</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>fra</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>deu</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>jpn</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>und</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="muxOptionsRow">
+     <item>
+      <widget class="QCheckBox" name="chkStreamCopy">
+       <property name="text">
+        <string>Stream copy (-c copy)</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="muxOptSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblMuxFormat">
+       <property name="text">
+        <string>Output Container:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboMuxContainer">
+       <item>
+        <property name="text">
+         <string>mkv</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>mp4</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="muxDialogButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

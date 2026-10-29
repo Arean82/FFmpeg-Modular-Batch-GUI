@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TargetSizeDialog</class>
+ <widget class="QDialog" name="TargetSizeDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>560</width>
+    <height>380</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Target File Size &amp; Two-Pass Calculator - FFmpeg Batch</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainTargetSizeLayout">
+   <item>
+    <widget class="QLabel" name="lblTargetDesc">
+     <property name="text">
+      <string>Calculates the exact video bitrate required to fit a target file size (e.g. Discord 25MB, Email, DVD):</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpTargetInputs">
+     <property name="title">
+      <string>Target Size &amp; Audio Parameters</string>
+     </property>
+     <layout class="QGridLayout" name="targetGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblTargetMB">
+        <property name="text">
+         <string>Desired File Size (MB):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="spinTargetMB">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>100000</number>
+        </property>
+        <property name="value">
+         <number>25</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblAudioBitrate">
+        <property name="text">
+         <string>Audio Bitrate:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="comboAudioBitrate">
+        <item>
+         <property name="text">
+          <string>128 kbps (Standard)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>96 kbps (Voice / Low)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>160 kbps (High)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>192 kbps (Audiophile)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblVideoDur">
+        <property name="text">
+         <string>Target File Duration:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="lblDurationVal">
+        <property name="text">
+         <string>None selected</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpResults">
+     <property name="title">
+      <string>Calculated Output Parameters</string>
+     </property>
+     <layout class="QFormLayout" name="resultsFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblCalcBitrate">
+        <property name="text">
+         <string>Computed Video Bitrate:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="lblComputedBitrateVal">
+        <property name="text">
+         <string>-- kbps</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblGeneratedArgs">
+        <property name="text">
+         <string>Generated Arguments:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="txtGeneratedArgs">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="targetButtonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
