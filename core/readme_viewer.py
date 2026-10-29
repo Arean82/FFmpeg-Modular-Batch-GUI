@@ -152,6 +152,19 @@ class ReadmeViewerDialog(QDialog):
         if not raw_md:
             raw_md = "# README not found\n\nCould not find a valid README.md in the application directory."
 
+        # Map remote shield badge URLs to local SVG files in assets/badges/ for offline rendering
+        badge_map = {
+            "https://img.shields.io/badge/Platform-Linux%20Native-FCC624?logo=linux&logoColor=black": "assets/badges/platform.svg",
+            "https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white": "assets/badges/python.svg",
+            "https://img.shields.io/badge/Framework-PySide6%20%2F%20Qt6-41CD52?logo=qt&logoColor=white": "assets/badges/qt.svg",
+            "https://img.shields.io/badge/FFmpeg-6.x%20%2F%207.x-007808?logo=ffmpeg&logoColor=white": "assets/badges/ffmpeg.svg",
+            "https://img.shields.io/badge/License-MIT-blue.svg": "assets/badges/license.svg",
+        }
+        rendered_md = raw_md
+        for remote_url, local_svg in badge_map.items():
+            if os.path.exists(os.path.join(base_dir, local_svg)):
+                rendered_md = rendered_md.replace(remote_url, local_svg)
+
         # Detect Dark Mode preference
         is_dark = False
         try:
@@ -169,7 +182,7 @@ class ReadmeViewerDialog(QDialog):
         theme_table_stripe = "#181818" if is_dark else "#fbfcfd"
         theme_link = "#58a6ff" if is_dark else "#0969da"
 
-        escaped_md = json.dumps(raw_md)
+        escaped_md = json.dumps(rendered_md)
 
         html_template = f"""<!DOCTYPE html>
 <html lang="en">
