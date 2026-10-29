@@ -12,16 +12,20 @@ os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
 import shlex
 import subprocess
+import time
 
-from PySide6.QtCore import QFile, QIODevice, QTime, QTimer, Qt, QThreadPool
+from PySide6.QtCore import QFile, QIODevice, QObject, QRunnable, QTime, QTimer, Qt, QThreadPool, QUrl, Signal, Slot
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QColorDialog,
+    QCompleter,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFontDialog,
+    QLabel,
     QListWidgetItem,
     QMainWindow,
     QMenu,
@@ -42,11 +46,25 @@ from core.config_manager import get_binary_path, get_config, save_config
 from core.crop_engine import detect_black_bars
 from core.engine import FFmpegTask
 from core.estimations import estimate_size_mb
+from core.loudnorm_engine import LOUDNORM_PRESETS, analyze_audio_loudness, build_loudnorm_filter
 from core.mux_engine import MuxJobTask
 from core.power_monitor import get_power_status
-from core.presets import load_presets, save_presets
+from core.presets import load_presets, save_presets, export_presets_bundle, import_presets_bundle
+from core.database import (
+    init_db,
+    db_save_queue,
+    db_load_queue,
+    db_clear_queue,
+    db_log_job_history,
+    db_get_last_error
+)
 from core.probe import probe_file
 from core.readme_viewer import ReadmeViewerDialog
+from core.disk_preflight import check_disk_space_preflight
+from core.gpu_probe import probe_gpu_encoders, build_hwaccel_args
+from core.script_exporter import generate_batch_bash_script
+from core.sleep_inhibitor import SleepInhibitor
+from core.thermal_guard import ThermalGuard
 from core.subs_engine import SubtitleTask
 from core.theme_manager import ThemeManager
 from core.tokens import substitute_tokens
@@ -93,11 +111,36 @@ class FFBatchApp(QMainWindow):
         self.power_timer.start()
         self.auto_paused_by_power = False
 
+        # Linux OS Sleep / Screen blanking inhibitor
+        self.sleep_inhibitor = SleepInhibitor("FFmpeg Modular Batch GUI")
+
         self.load_ui()
         self.build_menu_bar()
         self.setup_queue_table()
         self.setup_system_tray()
         self.connect_signals()
+
+        # Queue persistence: crash-recovery file next to main.py
+        self._queue_persist_file = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "queue_state.json"
+        )
+        # Log buffer cap: max lines kept in txtLog (prevents unbounded RAM growth)
+        self._log_max_lines = 5000
+
+        # Phase 2: Live Queue Telemetry (Aggregate Throughput & Smoothed ETA)
+        self.batch_start_time = None
+
+        # Hardware Thermal Guard (Monitors CPU/GPU packages to prevent overheating)
+        self.thermal_guard = ThermalGuard(max_temp_celsius=85, resume_temp_celsius=72)
+        self._last_thermal_check = 0.0
+
+        # Module 4: Hot Folder Watchdog Service
+        from core.hot_folder import HotFolderWatchdog
+        self.hot_folder_watchdog = HotFolderWatchdog(parent=self)
+        self.hot_folder_watchdog.file_detected.connect(self._on_hot_file_detected)
+
+        # Auto-restore queue from last session if a state file exists
+        self._restore_queue_from_disk()
 
     def load_ui(self):
         """Loads front-end layout strictly from the .ui file."""
@@ -125,13 +168,29 @@ class FFBatchApp(QMainWindow):
         self.presets = load_presets()
         self.refresh_presets_combo()
 
+        # Status Bar Inhibit Lock Indicator Pill
+        self.lbl_power_status = QLabel(" 💤 Idle ")
+        self.lbl_power_status.setStyleSheet(
+            "QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #2a2a2a; color: #888888; font-weight: bold; }"
+        )
+        self.statusBar().addPermanentWidget(self.lbl_power_status)
+
     def refresh_presets_combo(self):
-        """Populate preset dropdown from presets dictionary."""
+        """Populate preset dropdown from presets dictionary with searchable auto-completion."""
         self.ui.comboPresets.blockSignals(True)
         self.ui.comboPresets.clear()
         for name, data in self.presets.items():
             cat = data.get("category", "General")
             self.ui.comboPresets.addItem(f"[{cat}] {name}", userData=name)
+
+        # Polish Enhancement 2: Preset Quick-Search Filter (QCompleter)
+        self.ui.comboPresets.setEditable(True)
+        self.ui.comboPresets.setInsertPolicy(self.ui.comboPresets.InsertPolicy.NoInsert)
+        completer = QCompleter(self.ui.comboPresets.model(), self)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        self.ui.comboPresets.setCompleter(completer)
+
         self.ui.comboPresets.blockSignals(False)
         if self.ui.comboPresets.count() > 0:
             self.on_preset_selected(0)
@@ -159,6 +218,12 @@ class FFBatchApp(QMainWindow):
         act_add_folder = QAction("Add &Folder...", self)
         act_add_folder.triggered.connect(self.on_add_folder)
         file_menu.addAction(act_add_folder)
+
+        file_menu.addSeparator()
+
+        act_export_bash = QAction("📤 Export Queue to Bash Script (*.sh)...", self)
+        act_export_bash.triggered.connect(self.export_queue_to_bash_script)
+        file_menu.addAction(act_export_bash)
 
         file_menu.addSeparator()
 
@@ -210,6 +275,16 @@ class FFBatchApp(QMainWindow):
         act_delayed_start = QAction("Schedule &Delayed Start...", self)
         act_delayed_start.triggered.connect(self.open_delay_timer_dialog)
         queue_menu.addAction(act_delayed_start)
+
+        queue_menu.addSeparator()
+
+        act_save_queue = QAction("💾 Save Queue to JSON / CSV...", self)
+        act_save_queue.triggered.connect(self.save_queue_to_file)
+        queue_menu.addAction(act_save_queue)
+
+        act_load_queue = QAction("📂 Load Queue from File...", self)
+        act_load_queue.triggered.connect(self.load_queue_from_file)
+        queue_menu.addAction(act_load_queue)
 
         # 3. Presets Menu
         preset_menu = menubar.addMenu("&Presets")
@@ -268,9 +343,38 @@ class FFBatchApp(QMainWindow):
         act_waveform.triggered.connect(self.open_audio_waveform_dialog)
         tools_menu.addAction(act_waveform)
 
-        act_screen_rec = QAction("Record Desktop &Screen (x11grab)...", self)
+        act_video_player = QAction("▶ &Video Player Preview...", self)
+        act_video_player.setShortcut(QKeySequence("Ctrl+P"))
+        act_video_player.triggered.connect(self.open_video_player_dialog)
+        tools_menu.addAction(act_video_player)
+
+        act_loudnorm = QAction("Audio &Loudness Normalization (EBU R128)...", self)
+        act_loudnorm.triggered.connect(self.open_loudness_norm_dialog)
+        tools_menu.addAction(act_loudnorm)
+
+        act_screen_rec = QAction("Record Desktop &Screen (x11grab / PipeWire)...", self)
         act_screen_rec.triggered.connect(self.open_screen_record_dialog)
         tools_menu.addAction(act_screen_rec)
+
+        act_gpu_probe = QAction("&GPU Hardware Encoder Probe...", self)
+        act_gpu_probe.triggered.connect(self.open_gpu_probe_dialog)
+        tools_menu.addAction(act_gpu_probe)
+
+        act_vmaf = QAction("&Video Quality Score (VMAF / SSIM / PSNR)...", self)
+        act_vmaf.triggered.connect(self.open_vmaf_dialog)
+        tools_menu.addAction(act_vmaf)
+
+        act_tonemap = QAction("&HDR10 to SDR Tone-Mapping...", self)
+        act_tonemap.triggered.connect(self.apply_hdr_tonemap_preset)
+        tools_menu.addAction(act_tonemap)
+
+        act_hot_folder = QAction("&Automated Hot Folder Watchdog...", self)
+        act_hot_folder.triggered.connect(self.open_hot_folder_dialog)
+        tools_menu.addAction(act_hot_folder)
+
+        act_gpu_filter = QAction("GPU &Filter Acceleration (OpenCL / Vulkan)...", self)
+        act_gpu_filter.triggered.connect(self.open_gpu_filter_dialog)
+        tools_menu.addAction(act_gpu_filter)
 
         act_watermark = QAction("&Watermark / Logo Overlay...", self)
         act_watermark.triggered.connect(self.open_watermark_dialog)
@@ -340,6 +444,10 @@ class FFBatchApp(QMainWindow):
         act_output_path = QAction("&Manual Output Path Hierarchy...", self)
         act_output_path.triggered.connect(self.open_output_path_dialog)
         tools_menu.addAction(act_output_path)
+
+        act_install_desktop = QAction("🐧 Install Desktop Shortcut & File Manager Actions...", self)
+        act_install_desktop.triggered.connect(self.install_desktop_integration)
+        tools_menu.addAction(act_install_desktop)
 
         tools_menu.addSeparator()
 
@@ -421,7 +529,30 @@ class FFBatchApp(QMainWindow):
 
         self._update_theme_menu_checks()
 
-        # 6. Help Menu
+        # 6. Shortcuts Menu
+        shortcuts_menu = menubar.addMenu("&Shortcuts ⌨️")
+
+        shortcut_items = [
+            ("Add Files to Queue", "Ctrl+O", self.on_add_files),
+            ("Start Batch Queue Processing", "Ctrl+R", self.start_processing),
+            ("Video Player Preview", "Ctrl+P", self.open_video_player_dialog),
+            ("Advanced Queue Filtering", "Ctrl+F", self.open_queue_filter_dialog),
+            ("Inspect Media Streams (MediaInfo)", "Ctrl+I", self.open_media_info_dialog),
+            ("Two-Pass Target Size Calculator", "Ctrl+Shift+Z", self.open_target_size_dialog),
+            ("View FFmpeg Full Log", "Ctrl+L", self.open_log_viewer_dialog),
+            ("Toggle Theme (Light / Dark)", "Ctrl+Shift+T", self.toggle_theme),
+            ("Application Preferences & Settings", "Ctrl+,", self.open_settings_dialog),
+            ("Documentation & Help", "F1", self.open_readme),
+            ("Quit Application", "Ctrl+Q", self.close),
+        ]
+
+        for label, seq, handler in shortcut_items:
+            act = QAction(label, self)
+            act.setShortcut(QKeySequence(seq))
+            act.triggered.connect(handler)
+            shortcuts_menu.addAction(act)
+
+        # 7. Help Menu
         help_menu = menubar.addMenu("&Help")
 
         act_help_readme = QAction("Documentation (README)", self)
@@ -473,9 +604,89 @@ class FFBatchApp(QMainWindow):
         table.customContextMenuRequested.connect(self.show_queue_context_menu)
         self.apply_column_visibility()
 
+        # Phase 2: Native Drag-and-Drop Queue Reordering
+        table.setDragDropMode(QAbstractItemView.InternalMove)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setDragEnabled(True)
+        table.setAcceptDrops(True)
+        table.model().rowsMoved.connect(self._on_table_rows_moved)
+        self.setAcceptDrops(True)
+        table.viewport().setAcceptDrops(True)
+        table.viewport().installEventFilter(self)
+
+        # Polish Enhancement 3: Interactive Sorting by Column Headers
+        table.horizontalHeader().setSortIndicatorShown(True)
+        table.horizontalHeader().sectionClicked.connect(self.on_queue_header_clicked)
+        self._sort_order_ascending = {}
+
+    def on_queue_header_clicked(self, logical_index: int):
+        """Sorts the active queue ascending or descending by the clicked column header."""
+        table = self.ui.tableQueue
+        asc = not self._sort_order_ascending.get(logical_index, False)
+        self._sort_order_ascending[logical_index] = asc
+        order = Qt.AscendingOrder if asc else Qt.DescendingOrder
+        table.sortItems(logical_index, order)
+        self._on_table_rows_moved(None, 0, 0, None, 0)
+
+    def _on_table_rows_moved(self, parent, start, end, destination, row):
+        """Synchronizes backend queue_items list and database after drag-and-drop row reorder."""
+        new_items = []
+        table = self.ui.tableQueue
+        for r in range(table.rowCount()):
+            fname_item = table.item(r, 1)
+            if not fname_item:
+                continue
+            fname = fname_item.text()
+            match = next((item for item in self.queue_items if os.path.basename(item["path"]) == fname), None)
+            if match:
+                new_items.append(match)
+        if len(new_items) == len(self.queue_items):
+            self.queue_items = new_items
+        self._renumber_queue()
+        self._save_queue_to_disk()
+
+    def dragEnterEvent(self, event):
+        """Accept dragging files/folders from Linux desktop/file managers."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        """Process dropped files/folders from Linux desktop/file managers."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            cfg = get_config()
+            filter_on = cfg.get("exclusions_enabled", True)
+            exclusions = set(cfg.get("exclusions_list", []))
+
+            for url in event.mimeData().urls():
+                local_path = url.toLocalFile()
+                if not local_path or not os.path.exists(local_path):
+                    continue
+                if os.path.isdir(local_path):
+                    for root, _, files in os.walk(local_path):
+                        for f in sorted(files):
+                            ext = os.path.splitext(f)[1].lower().lstrip(".")
+                            if filter_on and ext in exclusions:
+                                continue
+                            self.add_file_to_queue(os.path.join(root, f))
+                else:
+                    ext = os.path.splitext(local_path)[1].lower().lstrip(".")
+                    if filter_on and ext in exclusions:
+                        continue
+                    self.add_file_to_queue(local_path)
+
     def on_queue_cell_double_clicked(self, row, col):
         if col == 1:
-            self.open_frame_preview_dialog(row)
+            self.open_video_player_dialog(row)
+        elif col == 8:
+            # Status column: inspect error if failed
+            status_item = self.ui.tableQueue.item(row, 8)
+            if status_item and "failed" in status_item.text().lower():
+                self.show_error_details_dialog(row)
+            else:
+                self.open_media_info_dialog()
         else:
             self.open_media_info_dialog()
 
@@ -549,6 +760,8 @@ class FFBatchApp(QMainWindow):
         self.ui.btnBrowseUrlOutputDir.clicked.connect(self.on_browse_url_output_dir)
         self.ui.btnSkipActiveUrl.clicked.connect(self.on_skip_active_url)
         self.ui.btnStartUrlDownloads.clicked.connect(self.start_url_downloads)
+        if hasattr(self.ui, "comboUrlQuality"):
+            self.ui.comboUrlQuality.currentIndexChanged.connect(self.on_url_quality_changed)
         self.ui.tableUrls.horizontalHeader().setStretchLastSection(True)
         self.ui.tableUrls.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ui.tableUrls.customContextMenuRequested.connect(self.show_url_context_menu)
@@ -606,6 +819,19 @@ class FFBatchApp(QMainWindow):
             self.ui.txtWatermarkFile.setText(path)
 
     # URL / Stream Downloading (Tab 4)
+    def on_url_quality_changed(self, idx: int):
+        """Updates yt-dlp / FFmpeg stream parameters according to selected quality profile."""
+        profiles = [
+            "-bsf:a aac_adtstoasc -c copy",                                           # Best (Default)
+            "-vf scale=-2:1080 -c:v libx264 -crf 20 -c:a aac -b:a 192k",             # 1080p
+            "-vf scale=-2:720 -c:v libx264 -crf 23 -c:a aac -b:a 128k",              # 720p
+            "-vf scale=-2:480 -c:v libx264 -crf 26 -c:a aac -b:a 96k",               # 480p
+            "-vn -c:a libmp3lame -b:a 320k",                                          # MP3 320k
+            "-vn -c:a libopus -b:a 160k"                                              # Opus
+        ]
+        if 0 <= idx < len(profiles):
+            self.ui.txtUrlParams.setText(profiles[idx])
+
     def on_add_url(self):
         url = self.ui.txtStreamUrl.text().strip()
         if not url:
@@ -1605,41 +1831,34 @@ class FFBatchApp(QMainWindow):
         if any(item["path"] == path for item in self.queue_items):
             return
 
-        meta = probe_file(path)
-        if not meta:
-            return
+        table = self.ui.tableQueue
+        row = table.rowCount()
+        table.insertRow(row)
 
         idx = len(self.queue_items)
+        placeholder_meta = {
+            "duration": 0,
+            "video_codec": "Probing...",
+            "audio_codec": "Probing...",
+            "size": os.path.getsize(path) if os.path.exists(path) else 0
+        }
         item_data = {
             "path": path,
-            "meta": meta,
+            "meta": placeholder_meta,
             "status": "Pending",
             "row": idx
         }
         self.queue_items.append(item_data)
 
-        table = self.ui.tableQueue
-        row = table.rowCount()
-        table.insertRow(row)
-
         table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
         table.setItem(row, 1, QTableWidgetItem(os.path.basename(path)))
+        table.setItem(row, 2, QTableWidgetItem("--:--"))
+        table.setItem(row, 3, QTableWidgetItem("Probing..."))
+        table.setItem(row, 4, QTableWidgetItem("Probing..."))
 
-        dur = meta.get("duration", 0)
-        dur_str = f"{int(dur // 60):02d}:{int(dur % 60):02d}"
-        table.setItem(row, 2, QTableWidgetItem(dur_str))
-
-        table.setItem(row, 3, QTableWidgetItem(meta.get("video_codec", "")))
-        table.setItem(row, 4, QTableWidgetItem(meta.get("audio_codec", "")))
-
-        size_mb = meta.get("size", 0) / (1024 * 1024)
+        size_mb = placeholder_meta["size"] / (1024 * 1024)
         table.setItem(row, 5, QTableWidgetItem(f"{size_mb:.2f} MB"))
-
-        # Estimated Output Size
-        args = self.ui.txtParameters.text()
-        est = estimate_size_mb(dur, args)
-        est_text = f"~{est:.1f} MB" if est else "-"
-        table.setItem(row, 6, QTableWidgetItem(est_text))
+        table.setItem(row, 6, QTableWidgetItem("-"))
 
         prog = QProgressBar()
         prog.setValue(0)
@@ -1648,6 +1867,48 @@ class FFBatchApp(QMainWindow):
 
         table.setItem(row, 8, QTableWidgetItem("Pending"))
         self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
+        self._save_queue_to_disk()
+
+        # Run metadata probe asynchronously to prevent UI freezing
+        class ProbeWorker(QRunnable):
+            def __init__(self, fpath, row_idx, callback):
+                super().__init__()
+                self.fpath = fpath
+                self.row_idx = row_idx
+                self.callback = callback
+
+            @Slot()
+            def run(self):
+                meta = probe_file(self.fpath)
+                self.callback(self.row_idx, self.fpath, meta)
+
+        def on_probe_complete(r_idx, fpath, meta):
+            if not meta:
+                return
+            for it in self.queue_items:
+                if it["path"] == fpath:
+                    it["meta"] = meta
+                    break
+
+            # Find matching row in table
+            for r in range(self.ui.tableQueue.rowCount()):
+                it_name = self.ui.tableQueue.item(r, 1)
+                if it_name and it_name.text() == os.path.basename(fpath):
+                    dur = meta.get("duration", 0)
+                    dur_str = f"{int(dur // 60):02d}:{int(dur % 60):02d}"
+                    self.ui.tableQueue.setItem(r, 2, QTableWidgetItem(dur_str))
+                    self.ui.tableQueue.setItem(r, 3, QTableWidgetItem(meta.get("video_codec", "")))
+                    self.ui.tableQueue.setItem(r, 4, QTableWidgetItem(meta.get("audio_codec", "")))
+
+                    args = self.ui.txtParameters.text()
+                    est = estimate_size_mb(dur, args)
+                    est_text = f"~{est:.1f} MB" if est else "-"
+                    self.ui.tableQueue.setItem(r, 6, QTableWidgetItem(est_text))
+                    break
+            self._save_queue_to_disk()
+
+        worker = ProbeWorker(path, row, on_probe_complete)
+        self.threadpool.start(worker)
 
     def on_remove_selected(self):
         table = self.ui.tableQueue
@@ -1658,11 +1919,13 @@ class FFBatchApp(QMainWindow):
             if r < len(self.queue_items):
                 del self.queue_items[r]
         self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
+        self._save_queue_to_disk()
 
     def on_clear_queue(self):
         self.ui.tableQueue.setRowCount(0)
         self.queue_items.clear()
         self.ui.lblItemCount.setText("0 items")
+        self._save_queue_to_disk()
 
     def on_clean_errors(self):
         table = self.ui.tableQueue
@@ -1677,6 +1940,7 @@ class FFBatchApp(QMainWindow):
                 del self.queue_items[r]
         self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
         self._renumber_queue()
+        self._save_queue_to_disk()
 
     def _renumber_queue(self):
         table = self.ui.tableQueue
@@ -1686,6 +1950,54 @@ class FFBatchApp(QMainWindow):
                 it.setText(str(r + 1))
             if r < len(self.queue_items):
                 self.queue_items[r]["row"] = r
+
+    # ── Queue Persistence & Crash Recovery ─────────────────────────────────
+    def _save_queue_to_disk(self):
+        """Persist current queue snapshot to SQLite database and mirror to JSON file."""
+        try:
+            db_save_queue(self.queue_items)
+            snapshot = [
+                {"path": item["path"], "status": item.get("status", "Pending")}
+                for item in self.queue_items
+                if os.path.exists(item["path"])
+            ]
+            with open(self._queue_persist_file, "w", encoding="utf-8") as f:
+                json.dump({"queue": snapshot}, f, indent=2)
+        except Exception:
+            pass
+
+    def _restore_queue_from_disk(self):
+        """On startup, offer to reload queue from SQLite or JSON recovery state."""
+        try:
+            items = db_load_queue()
+            pending = [s for s in items if s.get("status", "Pending") == "Pending" and os.path.exists(s["path"])]
+            if not pending and os.path.exists(self._queue_persist_file):
+                with open(self._queue_persist_file, encoding="utf-8") as f:
+                    data = json.load(f)
+                snapshot = data.get("queue", [])
+                pending = [s for s in snapshot if s.get("status", "Pending") == "Pending" and os.path.exists(s["path"])]
+
+            if not pending:
+                return
+
+            reply = QMessageBox.question(
+                self,
+                "Restore Previous Queue",
+                f"A queue from a previous session was found ({len(pending)} pending file(s)).\n\n"
+                "Would you like to restore it?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if reply == QMessageBox.Yes:
+                for s in pending:
+                    self.add_file_to_queue(s["path"])
+                self.ui.txtLog.appendPlainText(f">>> Queue restored: {len(pending)} file(s) recovered from previous session.")
+            else:
+                db_clear_queue()
+                if os.path.exists(self._queue_persist_file):
+                    os.remove(self._queue_persist_file)
+        except Exception:
+            pass
 
     def on_move_up(self):
         table = self.ui.tableQueue
@@ -1793,6 +2105,7 @@ class FFBatchApp(QMainWindow):
         act_open_dir = menu.addAction("Open Source Directory")
         act_open_dest = menu.addAction("Open Output Directory")
         act_preview_frame = menu.addAction("Preview Frame (Thumbnail)")
+        act_preview_player = menu.addAction("▶ Preview in Player")
         act_preview_cmd = menu.addAction("Copy FFmpeg Command")
         act_mediainfo = menu.addAction("Show Media Info (Ctrl+I)")
         menu.addSeparator()
@@ -1809,6 +2122,7 @@ class FFBatchApp(QMainWindow):
 
         act_open_dir.setEnabled(has_sel)
         act_preview_frame.setEnabled(has_sel)
+        act_preview_player.setEnabled(has_sel)
         act_preview_cmd.setEnabled(has_sel)
         act_mediainfo.setEnabled(has_sel)
         act_up.setEnabled(has_sel)
@@ -1840,6 +2154,9 @@ class FFBatchApp(QMainWindow):
         elif action == act_preview_frame and has_sel:
             row = table.selectedIndexes()[0].row()
             self.open_frame_preview_dialog(row)
+        elif action == act_preview_player and has_sel:
+            row = table.selectedIndexes()[0].row()
+            self.open_video_player_dialog(row)
         elif action == act_preview_cmd and has_sel:
             self.on_show_console_cmd()
         elif action == act_mediainfo and has_sel:
@@ -1943,6 +2260,27 @@ class FFBatchApp(QMainWindow):
         dialog.txtYtdlpPath.setEnabled(cfg.get("ytdlp_custom", False))
         dialog.btnBrowseYtdlp.setEnabled(cfg.get("ytdlp_custom", False))
 
+        # Load UI & Logging options (Tab 1)
+        dialog.chkAutoScrollLogs.setChecked(cfg.get("auto_scroll_logs", True))
+        dialog.chkPlayNotification.setChecked(cfg.get("play_notification_sound", True))
+        dialog.chkShowDesktopNotification.setChecked(cfg.get("show_desktop_notification", True))
+
+        # Load Encoding & Hardware settings (Tab 2)
+        hw_idx = dialog.comboHwAccel.findText(cfg.get("hw_accel", "Auto (VAAPI / NVENC / QSV)"))
+        if hw_idx >= 0: dialog.comboHwAccel.setCurrentIndex(hw_idx)
+
+        prio_idx = dialog.comboPriority.findText(cfg.get("process_priority", "Normal"))
+        if prio_idx >= 0: dialog.comboPriority.setCurrentIndex(prio_idx)
+
+        dialog.chkPauseOnBattery.setChecked(cfg.get("pause_on_battery", False))
+
+        # Load Output & Naming settings (Tab 3)
+        dialog.txtNamingPattern.setText(cfg.get("output_naming_pattern", "%~n_converted"))
+        if cfg.get("overwrite_mode", "overwrite") == "skip":
+            dialog.radSkipExisting.setChecked(True)
+        else:
+            dialog.radOverwrite.setChecked(True)
+
         # Load Post-Task settings
         post_act = cfg.get("on_finish_action", "none")
         if post_act == "sleep":
@@ -2020,6 +2358,20 @@ class FFBatchApp(QMainWindow):
             cfg["ffprobe_path"] = dialog.txtFfprobePath.text().strip()
             cfg["ytdlp_custom"] = dialog.chkCustomYtdlp.isChecked()
             cfg["ytdlp_path"] = dialog.txtYtdlpPath.text().strip()
+
+            # Save UI & Logging options
+            cfg["auto_scroll_logs"] = dialog.chkAutoScrollLogs.isChecked()
+            cfg["play_notification_sound"] = dialog.chkPlayNotification.isChecked()
+            cfg["show_desktop_notification"] = dialog.chkShowDesktopNotification.isChecked()
+
+            # Save Encoding & Hardware settings
+            cfg["hw_accel"] = dialog.comboHwAccel.currentText()
+            cfg["process_priority"] = dialog.comboPriority.currentText()
+            cfg["pause_on_battery"] = dialog.chkPauseOnBattery.isChecked()
+
+            # Save Output & Naming settings
+            cfg["output_naming_pattern"] = dialog.txtNamingPattern.text().strip()
+            cfg["overwrite_mode"] = "skip" if dialog.radSkipExisting.isChecked() else "overwrite"
 
             if dialog.radActionSleep.isChecked():
                 cfg["on_finish_action"] = "sleep"
@@ -2101,12 +2453,40 @@ class FFBatchApp(QMainWindow):
                 self.ui.comboPresets.setCurrentIndex(idx)
             dialog.accept()
 
+        def on_export_bundle():
+            fpath, _ = QFileDialog.getSaveFileName(
+                dialog, "Export Presets Bundle", "presets_backup.json", "JSON Files (*.json)"
+            )
+            if fpath:
+                if export_presets_bundle(fpath):
+                    QMessageBox.information(dialog, "Export Successful", f"Presets exported to:\n{fpath}")
+                else:
+                    QMessageBox.warning(dialog, "Export Failed", "Could not export presets bundle.")
+
+        def on_import_bundle():
+            fpath, _ = QFileDialog.getOpenFileName(
+                dialog, "Import Presets Bundle", "", "JSON Files (*.json)"
+            )
+            if fpath:
+                cnt = import_presets_bundle(fpath)
+                if cnt > 0:
+                    self.presets = load_presets()
+                    self.refresh_presets_combo()
+                    refresh_dialog_list()
+                    QMessageBox.information(dialog, "Import Successful", f"Successfully imported {cnt} preset(s).")
+                else:
+                    QMessageBox.warning(dialog, "Import Failed", "No valid presets found in the selected file.")
+
         refresh_dialog_list()
         dialog.listPresets.itemSelectionChanged.connect(on_item_selected)
         dialog.btnSavePresetItem.clicked.connect(on_save)
         dialog.btnNewPreset.clicked.connect(on_new)
         dialog.btnDeletePreset.clicked.connect(on_delete)
         dialog.btnApplyToMain.clicked.connect(on_apply)
+        if hasattr(dialog, "btnExportPresets"):
+            dialog.btnExportPresets.clicked.connect(on_export_bundle)
+        if hasattr(dialog, "btnImportPresets"):
+            dialog.btnImportPresets.clicked.connect(on_import_bundle)
         dialog.presetButtonBox.rejected.connect(dialog.reject)
         dialog.exec()
 
@@ -2194,7 +2574,54 @@ class FFBatchApp(QMainWindow):
 
     def open_stream_mapping_dialog(self):
         dialog = load_ui_widget("ui/stream_mapping_dialog.ui", self)
-        dialog.streamButtonBox.accepted.connect(dialog.accept)
+        
+        # Populate streams from first queue item if available
+        if self.queue_items:
+            first_path = self.queue_items[0]["path"]
+            dialog.lblStreamDesc.setText(f"Streams for {os.path.basename(first_path)}:")
+            meta = probe_file(first_path)
+            streams = meta.get("streams", [])
+            dialog.tableStreams.setRowCount(len(streams))
+            for row, st in enumerate(streams):
+                idx = st.get("index", row)
+                c_type = st.get("codec_type", "unknown")
+                codec = st.get("codec_name", "unknown")
+                tags = st.get("tags", {})
+                lang = tags.get("language", "und")
+
+                chk = QTableWidgetItem()
+                chk.setCheckState(Qt.Checked)
+                dialog.tableStreams.setItem(row, 0, chk)
+                dialog.tableStreams.setItem(row, 1, QTableWidgetItem(f"0:{idx}"))
+                dialog.tableStreams.setItem(row, 2, QTableWidgetItem(c_type.upper()))
+                dialog.tableStreams.setItem(row, 3, QTableWidgetItem(codec))
+                dialog.tableStreams.setItem(row, 4, QTableWidgetItem(lang))
+                dialog.tableStreams.setItem(row, 5, QTableWidgetItem("Copy / Process"))
+
+        def apply_mapping():
+            flags = []
+            if dialog.chkMapAllStreams.isChecked():
+                flags.append("-map 0")
+            elif dialog.tableStreams.rowCount() > 0:
+                for r in range(dialog.tableStreams.rowCount()):
+                    item = dialog.tableStreams.item(r, 0)
+                    if item and item.checkState() == Qt.Checked:
+                        st_id = dialog.tableStreams.item(r, 1).text()
+                        flags.append(f"-map {st_id}")
+
+            if dialog.chkDropSubs.isChecked():
+                flags.append("-sn")
+            if dialog.chkCopyAudio.isChecked():
+                flags.append("-c:a copy")
+
+            if flags:
+                generated = " ".join(flags)
+                curr = self.ui.txtParameters.text().strip()
+                self.ui.txtParameters.setText(f"{generated} {curr}".strip())
+                self.ui.txtLog.appendPlainText(f">>> Injected Stream Mapping flags: {generated}")
+            dialog.accept()
+
+        dialog.streamButtonBox.accepted.connect(apply_mapping)
         dialog.streamButtonBox.rejected.connect(dialog.reject)
         dialog.exec()
 
@@ -2346,6 +2773,90 @@ class FFBatchApp(QMainWindow):
                 dialog.btnRunDetection.setEnabled(True)
 
             dialog.btnRunDetection.clicked.connect(run_crop)
+
+            def visual_crop():
+                from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QRubberBand, QDialogButtonBox
+                from PySide6.QtCore import QPoint, QRect, QSize
+
+                ffmpeg_bin = get_binary_path("ffmpeg")
+                tmp_thumb = os.path.join("/tmp", f"crop_preview_{os.getpid()}_{int(time.time())}.jpg")
+                cmd = [ffmpeg_bin, "-y", "-ss", "2.0", "-i", target_path, "-frames:v", "1", "-q:v", "2", tmp_thumb]
+                try:
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                except Exception:
+                    pass
+
+                if not os.path.exists(tmp_thumb):
+                    QMessageBox.warning(dialog, "Preview Error", "Could not extract video frame for visual crop.")
+                    return
+
+                pixmap = QPixmap(tmp_thumb)
+                if pixmap.isNull():
+                    QMessageBox.warning(dialog, "Preview Error", "Extracted frame is invalid.")
+                    return
+
+                crop_win = QDialog(dialog)
+                crop_win.setWindowTitle("Drag to Select Crop Area (Rubber-Band)")
+                c_layout = QVBoxLayout(crop_win)
+
+                lbl_info = QLabel("Click and drag over the image to define the crop area:")
+                c_layout.addWidget(lbl_info)
+
+                class CropLabel(QLabel):
+                    def __init__(self, parent=None):
+                        super().__init__(parent)
+                        self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
+                        self.origin = QPoint()
+                        self.crop_rect = QRect()
+
+                    def mousePressEvent(self, event):
+                        if event.button() == Qt.LeftButton:
+                            self.origin = event.pos()
+                            self.rubberBand.setGeometry(QRect(self.origin, QSize()))
+                            self.rubberBand.show()
+
+                    def mouseMoveEvent(self, event):
+                        if not self.origin.isNull():
+                            self.rubberBand.setGeometry(QRect(self.origin, event.pos()).normalized())
+
+                    def mouseReleaseEvent(self, event):
+                        if event.button() == Qt.LeftButton:
+                            self.crop_rect = self.rubberBand.geometry()
+
+                crop_label = CropLabel(crop_win)
+                # Scale image to max 720p for visual selection
+                scaled_pix = pixmap.scaled(720, 480, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                crop_label.setPixmap(scaled_pix)
+                crop_label.setFixedSize(scaled_pix.size())
+                c_layout.addWidget(crop_label)
+
+                bbox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+                c_layout.addWidget(bbox)
+
+                def on_confirm():
+                    rect = crop_label.crop_rect
+                    if rect.isValid() and rect.width() > 10 and rect.height() > 10:
+                        # Map scaled coordinates to full native resolution
+                        scale_x = pixmap.width() / scaled_pix.width()
+                        scale_y = pixmap.height() / scaled_pix.height()
+                        orig_w = int(rect.width() * scale_x)
+                        orig_h = int(rect.height() * scale_y)
+                        orig_x = int(rect.x() * scale_x)
+                        orig_y = int(rect.y() * scale_y)
+                        crop_filter_str = f"-vf crop={orig_w}:{orig_h}:{orig_x}:{orig_y}"
+                        dialog.txtCropFilter.setText(crop_filter_str)
+                        dialog.txtCropLog.setPlainText(f"Visual rubber-band crop selected: {crop_filter_str}")
+                    crop_win.accept()
+
+                bbox.accepted.connect(on_confirm)
+                bbox.rejected.connect(crop_win.reject)
+                crop_win.exec()
+                if os.path.exists(tmp_thumb):
+                    try: os.remove(tmp_thumb)
+                    except Exception: pass
+
+            if hasattr(dialog, "btnInteractiveCrop"):
+                dialog.btnInteractiveCrop.clicked.connect(visual_crop)
 
             def apply_crop():
                 filter_val = dialog.txtCropFilter.text().strip()
@@ -2812,6 +3323,25 @@ class FFBatchApp(QMainWindow):
             QMessageBox.information(self, "Queue Empty", "Please add files to the queue first.")
             return
 
+        # Pre-flight Safety: Verify disk storage before batch processing
+        custom_dest = self.ui.radCustomFolder.isChecked()
+        dest_dir = self.ui.txtOutputDir.text().strip()
+        safe, msg, stats = check_disk_space_preflight(
+            self.queue_items,
+            dest_dir=dest_dir,
+            custom_dest=custom_dest
+        )
+        if not safe:
+            reply = QMessageBox.warning(
+                self,
+                "Disk Space Warning",
+                f"{msg}\nDo you still want to proceed?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
         max_threads = self.ui.spinThreads.value()
         self.threadpool.setMaxThreadCount(max_threads)
 
@@ -2861,6 +3391,17 @@ class FFBatchApp(QMainWindow):
         self.ui.txtLog.appendPlainText(">>> Batch Processing Started...")
 
         self.active_tasks.clear()
+        self.batch_start_time = time.time()
+
+        # Inhibit Linux system sleep and screen blanking during active encoding
+        if hasattr(self, "sleep_inhibitor"):
+            if self.sleep_inhibitor.inhibit():
+                self.ui.txtLog.appendPlainText(">>> Linux power inhibit active: Sleep and screen blanking blocked.")
+                if hasattr(self, "lbl_power_status"):
+                    self.lbl_power_status.setText(" ⚡ Sleep Blocked ")
+                    self.lbl_power_status.setStyleSheet(
+                        "QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #d97706; color: #ffffff; font-weight: bold; }"
+                    )
 
         pre_input_val = self.ui.txtPreInput.text().strip() if hasattr(self.ui, "txtPreInput") else ""
         overwrite_val = self.ui.chkOverwrite.isChecked() if hasattr(self.ui, "chkOverwrite") else True
@@ -2892,7 +3433,8 @@ class FFBatchApp(QMainWindow):
                 two_pass=is_two_pass,
                 pre_input=pre_input_val,
                 overwrite=overwrite_val,
-                cpu_priority=cpu_prio_val
+                cpu_priority=cpu_prio_val,
+                hang_timeout=60.0
             )
             task.signals.progress.connect(self.on_task_progress)
             task.signals.log.connect(self.on_task_log)
@@ -2917,14 +3459,58 @@ class FFBatchApp(QMainWindow):
             if bar:
                 total_percent += bar.value()
 
-        # Update Overall Progress & Dynamic Window Title
+        # Update Overall Progress & Dynamic Window Title & Live ETA
         if self.queue_items:
             avg_percent = int(total_percent / len(self.queue_items))
             self.ui.overallProgress.setValue(avg_percent)
-            self.setWindowTitle(f"[{avg_percent}%] FFmpeg Batch AV Converter (Linux Native)")
+
+            # Compute Live ETA
+            eta_str = "--:--"
+            if self.batch_start_time and avg_percent > 0:
+                elapsed = time.time() - self.batch_start_time
+                if elapsed > 1.0 and avg_percent < 100:
+                    total_estimated = elapsed / (avg_percent / 100.0)
+                    remaining = max(0, int(total_estimated - elapsed))
+                    mins, secs = divmod(remaining, 60)
+                    hrs, mins = divmod(mins, 60)
+                    eta_str = f"{hrs:02d}:{mins:02d}:{secs:02d}" if hrs > 0 else f"{mins:02d}:{secs:02d}"
+                elif avg_percent >= 100:
+                    eta_str = "00:00"
+
+            self.setWindowTitle(f"[{avg_percent}% | ETA: {eta_str}] FFmpeg Batch AV Converter (Linux Native)")
+            if hasattr(self.ui, "statusbar") and self.ui.statusbar:
+                self.ui.statusbar.showMessage(f"Queue Progress: {avg_percent}% | Estimated Remaining: {eta_str} | Active Threads: {len(self.active_tasks)}")
+
+        # Thermal Throttling Check (throttled check once every 5 seconds)
+        now = time.time()
+        if hasattr(self, "thermal_guard") and (now - self._last_thermal_check) >= 5.0:
+            self._last_thermal_check = now
+            status = self.thermal_guard.check_thermal_status()
+            if status["should_pause"] and not self.is_paused:
+                self.ui.txtLog.appendPlainText(f"🔥 THERMAL GUARD ALERT: Hardware temperature reached {status['max_observed']:.1f}°C (Threshold: {self.thermal_guard.max_temp}°C). Auto-pausing batch queue to protect hardware...")
+                self.pause_processing()
+                if hasattr(self, "lbl_power_status"):
+                    self.lbl_power_status.setText(f" 🔥 Overheat {status['max_observed']:.0f}°C ")
+                    self.lbl_power_status.setStyleSheet("QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #dc2626; color: #ffffff; font-weight: bold; }")
+            elif status["should_resume"] and self.is_paused:
+                self.ui.txtLog.appendPlainText(f"❄ THERMAL GUARD: Hardware cooled to {status['max_observed']:.1f}°C. Auto-resuming batch processing...")
+                self.pause_processing()
+
+    def _append_log(self, line: str):
+        """Append a line to txtLog and cap buffer to _log_max_lines to prevent RAM growth."""
+        log_widget = self.ui.txtLog
+        log_widget.appendPlainText(line)
+        doc = log_widget.document()
+        while doc.blockCount() > self._log_max_lines:
+            cursor = log_widget.textCursor()
+            cursor.movePosition(cursor.Start)
+            cursor.select(cursor.LineUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deleteChar()   # delete trailing newline
+        log_widget.moveCursor(log_widget.textCursor().End)
 
     def on_task_log(self, line: str):
-        self.ui.txtLog.appendPlainText(line)
+        self._append_log(line)
 
     def on_task_finished(self, file_path: str, success: bool, msg: str):
         out_path = ""
@@ -2938,10 +3524,52 @@ class FFBatchApp(QMainWindow):
                     if bar:
                         bar.setValue(100)
                 else:
-                    if status_item:
-                        status_item.setText(f"Failed ({msg})")
+                    # Smart Fallback Auto-Retry: Check if error was caused by GPU hardware failure
+                    is_gpu_err = any(tok in msg.lower() for tok in ["nvenc", "vaapi", "qsv", "device", "out of memory"])
+                    item_retried = item.get("_gpu_retried", False)
+
+                    if is_gpu_err and not item_retried:
+                        item["_gpu_retried"] = True
+                        if status_item:
+                            status_item.setText("Retrying with CPU...")
+                        self.ui.txtLog.appendPlainText(f">>> GPU error detected for {os.path.basename(file_path)}. Retrying automatically with CPU fallback...")
+                        cpu_params = re.sub(r"-c:v\s+(h264_nvenc|hevc_nvenc|av1_nvenc|h264_vaapi|hevc_vaapi|av1_vaapi|h264_qsv|hevc_qsv|av1_qsv)", "-c:v libx264", item.get("params", ""))
+                        if not cpu_params:
+                            cpu_params = "-c:v libx264 -crf 23 -c:a aac -b:a 128k"
+                        retry_task = FFmpegTask(
+                            file_path,
+                            out_path,
+                            cpu_params,
+                            item["meta"].get("duration", 0),
+                            two_pass=False,
+                            pre_input="",
+                            overwrite=True,
+                            cpu_priority="Normal",
+                            hang_timeout=60.0
+                        )
+                        retry_task.signals.progress.connect(self.on_task_progress)
+                        retry_task.signals.log.connect(self.on_task_log)
+                        retry_task.signals.finished.connect(self.on_task_finished)
+                        self.active_tasks.append(retry_task)
+                        self.threadpool.start(retry_task)
+                        return
+                    else:
+                        if status_item:
+                            status_item.setText(f"Failed ({msg})")
+                            status_item.setToolTip("Double-click to inspect detailed error trace.")
                 out_path = item.get("output_path", "")
                 break
+
+        # Log to SQLite Job Audit History
+        params_used = self.ui.txtParameters.text().strip()
+        db_log_job_history(
+            file_path=file_path,
+            output_path=out_path,
+            params=params_used,
+            success=success,
+            error_msg=msg if not success else ""
+        )
+        self._save_queue_to_disk()
 
         # Check Per-File Hook (Form13/Form14 Parity)
         cfg = get_config()
@@ -2967,6 +3595,13 @@ class FFBatchApp(QMainWindow):
                     completed_count += 1
 
         if all_finished and self.active_tasks:
+            if hasattr(self, "sleep_inhibitor"):
+                self.sleep_inhibitor.uninhibit()
+            if hasattr(self, "lbl_power_status"):
+                self.lbl_power_status.setText(" 💤 Idle ")
+                self.lbl_power_status.setStyleSheet(
+                    "QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #2a2a2a; color: #888888; font-weight: bold; }"
+                )
             self.ui.btnStart.setEnabled(True)
             self.ui.btnPause.setEnabled(False)
             self.ui.btnPause.setText("Pause")
@@ -2977,29 +3612,34 @@ class FFBatchApp(QMainWindow):
             self.setWindowTitle("FFmpeg Batch AV Converter (Linux Native)")
             self.ui.txtLog.appendPlainText(f">>> Batch Finished! {completed_count}/{len(self.queue_items)} files converted successfully.")
 
-            # 1. Play Completion Audio Chime
-            sound_path = os.path.join(os.path.dirname(__file__), "assets", "complete.wav")
-            if os.path.exists(sound_path):
-                try:
-                    subprocess.Popen(["paplay", sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except Exception:
+            # 1. Play Completion Audio Chime (if enabled in settings)
+            cfg = get_config()
+            if cfg.get("play_notification_sound", True):
+                sound_path = os.path.join(os.path.dirname(__file__), "assets", "complete.wav")
+                if os.path.exists(sound_path):
                     try:
-                        subprocess.Popen(["aplay", "-q", sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.Popen(["paplay", sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     except Exception:
-                        pass
+                        try:
+                            subprocess.Popen(["aplay", "-q", sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        except Exception:
+                            pass
 
-            # 2. Native Linux Desktop Notification
-            try:
-                icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
-                msg = f"Queue finished: {completed_count} of {len(self.queue_items)} files converted successfully."
-                subprocess.Popen([
-                    "notify-send",
-                    "-i", icon_path,
-                    "FFmpeg Batch AV Converter",
-                    msg
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception:
-                pass
+            # 2. Native Linux Desktop Notification (if enabled in settings)
+            if cfg.get("show_desktop_notification", True):
+                try:
+                    icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
+                    msg = f"Queue finished: {completed_count} of {len(self.queue_items)} files converted successfully."
+                    notify_cmd = [
+                        "notify-send",
+                        "-i", icon_path,
+                        "-a", "FFmpeg Batch AV Converter",
+                        "FFmpeg Batch AV Converter",
+                        msg
+                    ]
+                    subprocess.Popen(notify_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
 
             # 3. Post-Task Action (External script, Suspend, or Shutdown)
             cfg = get_config()
@@ -3042,12 +3682,26 @@ class FFBatchApp(QMainWindow):
         if not self.is_paused:
             self.is_paused = True
             self.ui.btnPause.setText("Resume")
+            if hasattr(self, "sleep_inhibitor"):
+                self.sleep_inhibitor.uninhibit()
+            if hasattr(self, "lbl_power_status"):
+                self.lbl_power_status.setText(" ⏸ Paused ")
+                self.lbl_power_status.setStyleSheet(
+                    "QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #4b5563; color: #e5e7eb; font-weight: bold; }"
+                )
             for task in self.active_tasks:
                 task.pause()
             self.ui.txtLog.appendPlainText(">>> Batch processing PAUSED.")
         else:
             self.is_paused = False
             self.ui.btnPause.setText("Pause")
+            if hasattr(self, "sleep_inhibitor"):
+                self.sleep_inhibitor.inhibit()
+            if hasattr(self, "lbl_power_status"):
+                self.lbl_power_status.setText(" ⚡ Sleep Blocked ")
+                self.lbl_power_status.setStyleSheet(
+                    "QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #d97706; color: #ffffff; font-weight: bold; }"
+                )
             for task in self.active_tasks:
                 task.resume()
             self.ui.txtLog.appendPlainText(">>> Batch processing RESUMED.")
@@ -3062,6 +3716,13 @@ class FFBatchApp(QMainWindow):
 
     def stop_processing(self):
         self.is_paused = False
+        if hasattr(self, "sleep_inhibitor"):
+            self.sleep_inhibitor.uninhibit()
+        if hasattr(self, "lbl_power_status"):
+            self.lbl_power_status.setText(" 💤 Idle ")
+            self.lbl_power_status.setStyleSheet(
+                "QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #2a2a2a; color: #888888; font-weight: bold; }"
+            )
         for task in self.active_tasks:
             task.cancel()
         self.ui.btnStart.setEnabled(True)
@@ -3216,8 +3877,26 @@ class FFBatchApp(QMainWindow):
     # Item 5: Linux Screen Recording Tool (btn_capture using x11grab)
     def open_screen_record_dialog(self):
         dlg = load_ui_widget("ui/screen_record_dialog.ui", self)
-        display_var = os.environ.get("DISPLAY", ":0.0")
-        dlg.txtDisplayServer.setText(display_var)
+
+        # Auto-detect display server: Wayland vs X11
+        wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
+        x11_display = os.environ.get("DISPLAY", ":0.0")
+        is_wayland = bool(wayland_display)
+
+        if is_wayland:
+            dlg.txtDisplayServer.setText(wayland_display)
+            dlg.lblDisplay.setText("Display Server (Wayland):")
+            # Add PipeWire-specific audio if not already in combo
+            found_pw = False
+            for i in range(dlg.comboAudioDevice.count()):
+                if "PipeWire" in dlg.comboAudioDevice.itemText(i) and "pipewire" in dlg.comboAudioDevice.itemText(i).lower():
+                    found_pw = True
+                    break
+            if not found_pw:
+                dlg.comboAudioDevice.insertItem(0, "pipewire (PipeWire native)")
+                dlg.comboAudioDevice.setCurrentIndex(0)
+        else:
+            dlg.txtDisplayServer.setText(x11_display)
 
         default_out = os.path.join(os.path.expanduser("~/Videos"), "screen_recording.mp4")
         dlg.txtRecordPath.setText(default_out)
@@ -3241,28 +3920,56 @@ class FFBatchApp(QMainWindow):
         rec_timer.timeout.connect(on_tick)
         rec_process["timer"] = rec_timer
 
-        def toggle_record():
-            if rec_process["proc"] is None:
-                # Start recording
-                out_file = dlg.txtRecordPath.text().strip() or default_out
-                os.makedirs(os.path.dirname(os.path.abspath(out_file)), exist_ok=True)
-                disp = dlg.txtDisplayServer.text().strip() or ":0.0"
-                fps = dlg.spinFramerate.value()
-                audio_choice = dlg.comboAudioDevice.currentText()
+        def build_record_cmd(out_file: str) -> list:
+            """Build FFmpeg capture command for current display server."""
+            fps = dlg.spinFramerate.value()
+            audio_choice = dlg.comboAudioDevice.currentText()
+            ffmpeg_bin = get_binary_path("ffmpeg")
 
-                ffmpeg_bin = get_binary_path("ffmpeg")
+            if is_wayland:
+                # Wayland: use PipeWire screencast via kmsgrab (drm) or wlr-screencopy
+                # The most broadly compatible method on modern Wayland compositors is
+                # kmsgrab + pipewire for audio.  Falls back gracefully if GPU DRM not available.
+                # Try wf-recorder wrapper path first (compositor-agnostic), else kmsgrab.
+                if audio_choice and "pipewire" in audio_choice.lower():
+                    audio_args = ["-f", "pipewire", "-i", "default"]
+                else:
+                    audio_args = []
+
+                # kmsgrab needs cap_sys_admin or DRI access; use x11grab DISPLAY if set too
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-f", "kmsgrab",
+                    "-framerate", str(fps),
+                    "-i", "-",
+                    "-vf", "hwmap=derive_device=vaapi,scale_vaapi=format=nv12,hwdownload,format=nv12",
+                ]
+                cmd.extend(audio_args)
+                cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", out_file])
+            else:
+                # X11: classic x11grab
+                disp = dlg.txtDisplayServer.text().strip() or ":0.0"
                 cmd = [
                     ffmpeg_bin, "-y",
                     "-video_size", "1920x1080",
                     "-framerate", str(fps),
                     "-f", "x11grab",
-                    "-i", disp
+                    "-i", disp,
                 ]
-                if "PulseAudio" in audio_choice or "default" in audio_choice:
+                if "PulseAudio" in audio_choice or "default" in audio_choice or "pipewire" in audio_choice.lower():
                     cmd.extend(["-f", "pulse", "-i", "default"])
                 cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", out_file])
 
-                self.ui.txtLog.appendPlainText(f">>> Launching screen recording: {' '.join(cmd)}")
+            return cmd
+
+        def toggle_record():
+            if rec_process["proc"] is None:
+                out_file = dlg.txtRecordPath.text().strip() or default_out
+                os.makedirs(os.path.dirname(os.path.abspath(out_file)), exist_ok=True)
+                cmd = build_record_cmd(out_file)
+
+                srv_label = "Wayland/PipeWire" if is_wayland else "X11/x11grab"
+                self.ui.txtLog.appendPlainText(f">>> Launching screen recording ({srv_label}): {' '.join(cmd)}")
                 try:
                     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     rec_process["proc"] = p
@@ -3274,11 +3981,9 @@ class FFBatchApp(QMainWindow):
                 except Exception as e:
                     QMessageBox.warning(dlg, "Recording Error", f"Failed to start screen recording:\n{e}")
             else:
-                # Stop recording
                 p = rec_process["proc"]
                 rec_timer.stop()
                 try:
-                    # Send 'q' to ffmpeg stdin for graceful termination
                     p.communicate(input=b"q", timeout=3)
                 except Exception:
                     p.terminate()
@@ -3287,7 +3992,6 @@ class FFBatchApp(QMainWindow):
                 dlg.btnToggleRecord.setStyleSheet("font-weight: bold; color: white; background-color: #e74c3c;")
                 out_file = dlg.txtRecordPath.text().strip() or default_out
                 dlg.lblRecordStatus.setText(f"Saved: {os.path.basename(out_file)}")
-                # Ask to add to queue
                 reply = QMessageBox.question(
                     dlg,
                     "Add to Batch Queue?",
@@ -3306,6 +4010,106 @@ class FFBatchApp(QMainWindow):
             dlg.reject()
 
         dlg.recordButtonBox.rejected.connect(on_close)
+        dlg.exec()
+
+    # GPU Hardware Encoder Probe Dialog
+    def open_gpu_probe_dialog(self):
+        """Probe all hardware GPU encoders and present results with one-click injection."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+            QTreeWidget, QTreeWidgetItem, QGroupBox, QLineEdit, QDialogButtonBox
+        )
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("GPU Hardware Encoder Probe")
+        dlg.setMinimumSize(640, 420)
+        layout = QVBoxLayout(dlg)
+
+        info_lbl = QLabel(
+            "Probing available hardware encoders via FFmpeg (null-sink test, ~5 s)…\n"
+            "Click an available encoder to copy its arguments to the Parameters field."
+        )
+        info_lbl.setWordWrap(True)
+        layout.addWidget(info_lbl)
+
+        tree = QTreeWidget()
+        tree.setHeaderLabels(["Encoder", "Label", "Status", "Error / Note"])
+        tree.setColumnWidth(0, 160)
+        tree.setColumnWidth(1, 160)
+        tree.setColumnWidth(2, 80)
+        tree.setColumnWidth(3, 200)
+        layout.addWidget(tree)
+
+        grp_args = QGroupBox("Generated FFmpeg Arguments")
+        grp_layout = QHBoxLayout(grp_args)
+        txt_args = QLineEdit()
+        txt_args.setReadOnly(True)
+        txt_args.setPlaceholderText("Select an available encoder above…")
+        grp_layout.addWidget(txt_args)
+        layout.addWidget(grp_args)
+
+        btn_box = QDialogButtonBox()
+        btn_probe = btn_box.addButton("Run Probe", QDialogButtonBox.ActionRole)
+        btn_inject = btn_box.addButton("Apply to Parameters", QDialogButtonBox.ApplyRole)
+        btn_close = btn_box.addButton(QDialogButtonBox.Close)
+        layout.addWidget(btn_box)
+
+        probe_results = {}
+
+        def run_probe():
+            tree.clear()
+            txt_args.clear()
+            info_lbl.setText("Probing hardware encoders… (may take a few seconds)")
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            btn_probe.setEnabled(False)
+            try:
+                results = probe_gpu_encoders(timeout=6.0)
+                probe_results.update(results)
+                for vendor, encoders in results.items():
+                    vendor_item = QTreeWidgetItem(tree, [vendor, "", "", ""])
+                    vendor_item.setExpanded(True)
+                    for e in encoders:
+                        status = "✅ Available" if e["available"] else "❌ Not found"
+                        err = "" if e["available"] else e.get("error", "")
+                        QTreeWidgetItem(vendor_item, [e["enc"], e["label"], status, err])
+                ok_count = sum(
+                    1 for encs in results.values() for e in encs if e["available"]
+                )
+                info_lbl.setText(
+                    f"Probe complete. {ok_count} hardware encoder(s) detected. "
+                    "Click an available encoder to generate its FFmpeg arguments."
+                )
+            finally:
+                btn_probe.setEnabled(True)
+                QApplication.restoreOverrideCursor()
+
+        def on_item_click(item, col):
+            enc = item.text(0)
+            if not item.parent():
+                return
+            for encs in probe_results.values():
+                for e in encs:
+                    if e["enc"] == enc and e["available"]:
+                        txt_args.setText(build_hwaccel_args(enc))
+                        return
+            txt_args.setText("")
+
+        def on_inject():
+            args = txt_args.text().strip()
+            if not args:
+                QMessageBox.information(dlg, "No Selection", "Select an available encoder first.")
+                return
+            curr = self.ui.txtParameters.text().strip()
+            self.ui.txtParameters.setText(f"{curr} {args}".strip() if curr else args)
+            self.ui.txtLog.appendPlainText(f">>> Injected GPU encoder args: {args}")
+            dlg.accept()
+
+        tree.itemClicked.connect(on_item_click)
+        btn_probe.clicked.connect(run_probe)
+        btn_inject.clicked.connect(on_inject)
+        btn_close.clicked.connect(dlg.reject)
+
+        run_probe()
         dlg.exec()
 
     # Form16: Full Log File Viewer Dialog
@@ -3490,6 +4294,39 @@ class FFBatchApp(QMainWindow):
                 QMessageBox.information(dlg, "Exported", f"FFMETADATA file exported to:\n{f}")
 
         dlg.btnExportChaptersTxt.clicked.connect(export_txt)
+
+        def auto_interval_chapters():
+            if not self.queue_items:
+                QMessageBox.warning(dlg, "No Target", "Please add files to the queue first.")
+                return
+            target_path = self.queue_items[0]["path"]
+            meta = self.queue_items[0].get("meta", {})
+            total_sec = meta.get("duration", 0)
+            if total_sec <= 0:
+                QMessageBox.warning(dlg, "Unknown Duration", "Could not determine media duration for interval calculation.")
+                return
+
+            table.setRowCount(0)
+            interval = 300  # 5 minutes = 300s
+            curr = 0
+            idx = 1
+            while curr < total_sec:
+                h = curr // 3600
+                m = (curr % 3600) // 60
+                s = curr % 60
+                time_str = f"{h:02d}:{m:02d}:{s:02d}"
+
+                r = table.rowCount()
+                table.insertRow(r)
+                table.setItem(r, 0, QTableWidgetItem(str(idx)))
+                table.setItem(r, 1, QTableWidgetItem(time_str))
+                table.setItem(r, 2, QTableWidgetItem(f"Chapter {idx}"))
+                curr += interval
+                idx += 1
+            QMessageBox.information(dlg, "Chapters Generated", f"Auto-generated {table.rowCount()} chapters at 5-minute intervals.")
+
+        if hasattr(dlg, "btnAutoIntervalChapters"):
+            dlg.btnAutoIntervalChapters.clicked.connect(auto_interval_chapters)
 
         def inject_chapters():
             if not self.queue_items:
@@ -3829,6 +4666,219 @@ class FFBatchApp(QMainWindow):
                 os.remove(tmp_img)
             except Exception:
                 pass
+
+    # Interactive Video Player Preview (Qt Multimedia)
+    def open_video_player_dialog(self, row_idx: int = -1):
+        """Full interactive video player with seek, volume, speed, snapshot, and queue navigation."""
+        from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+        from PySide6.QtMultimediaWidgets import QVideoWidget
+
+        if row_idx < 0:
+            row_idx = self.ui.tableQueue.currentRow()
+        if row_idx < 0 or not self.queue_items:
+            QMessageBox.information(self, "No File", "Please select a media file from the queue.")
+            return
+
+        dlg = load_ui_widget("ui/video_player_dialog.ui", self)
+        dlg.setModal(False)  # Non-modal so user can interact with main window
+
+        # ── Embed QVideoWidget inside the videoFrame placeholder ──────────
+        video_widget = QVideoWidget(dlg.videoFrame)
+        video_widget.setStyleSheet("background-color: #000000;")
+        dlg.videoFrame.layout().addWidget(video_widget)
+
+        # ── Media player wiring ───────────────────────────────────────────
+        player = QMediaPlayer(dlg)
+        audio_out = QAudioOutput(dlg)
+        player.setAudioOutput(audio_out)
+        player.setVideoOutput(video_widget)
+
+        # ── State ─────────────────────────────────────────────────────────
+        state = {
+            "row": row_idx,
+            "user_seeking": False,
+            "duration_ms": 0,
+        }
+
+        SPEED_MAP = [0.25, 0.5, 1.0, 1.25, 1.5, 2.0]
+
+        # ── Helpers ───────────────────────────────────────────────────────
+        def ms_to_hms(ms: int) -> str:
+            s = ms // 1000
+            h, rem = divmod(s, 3600)
+            m, sec = divmod(rem, 60)
+            return f"{h:02d}:{m:02d}:{sec:02d}"
+
+        def load_file(row: int):
+            if row < 0 or row >= len(self.queue_items):
+                return
+            state["row"] = row
+            fpath = self.queue_items[row]["path"]
+            fname = os.path.basename(fpath)
+            meta = self.queue_items[row].get("meta", {})
+            res = meta.get("resolution", "")
+            vc = meta.get("video_codec", "")
+            ac = meta.get("audio_codec", "")
+            info = " | ".join(x for x in [res, vc, ac] if x)
+            dlg.lblFileName.setText(f"{fname}  ({info})" if info else fname)
+            dlg.lblFileName.setToolTip(fpath)
+            player.setSource(QUrl.fromLocalFile(fpath))
+            dlg.lblPosition.setText("00:00:00")
+            dlg.lblDuration.setText("00:00:00")
+            dlg.sliderSeek.setValue(0)
+            dlg.lblStatus.setText(f"Loaded: {fname}")
+            # Update prev/next button states
+            dlg.btnPrevFile.setEnabled(row > 0)
+            dlg.btnNextFile.setEnabled(row < len(self.queue_items) - 1)
+            player.play()
+            dlg.btnPlayPause.setText("⏸ Pause")
+
+        def on_duration_changed(dur_ms: int):
+            state["duration_ms"] = dur_ms
+            dlg.sliderSeek.setMaximum(max(1, dur_ms))
+            dlg.lblDuration.setText(ms_to_hms(dur_ms))
+
+        def on_position_changed(pos_ms: int):
+            if not state["user_seeking"]:
+                dlg.sliderSeek.setValue(pos_ms)
+            dlg.lblPosition.setText(ms_to_hms(pos_ms))
+
+        def on_playback_state_changed(ps):
+            if ps == QMediaPlayer.PlayingState:
+                dlg.btnPlayPause.setText("⏸ Pause")
+            elif ps == QMediaPlayer.PausedState:
+                dlg.btnPlayPause.setText("▶ Play")
+            elif ps == QMediaPlayer.StoppedState:
+                dlg.btnPlayPause.setText("▶ Play")
+
+        def on_error(err, err_str=""):
+            dlg.lblStatus.setText(f"⚠ Playback error: {err_str or str(err)}")
+
+        def on_media_status_changed(status):
+            if status == QMediaPlayer.EndOfMedia:
+                dlg.lblStatus.setText("End of file.")
+                dlg.btnPlayPause.setText("▶ Play")
+
+        player.durationChanged.connect(on_duration_changed)
+        player.positionChanged.connect(on_position_changed)
+        player.playbackStateChanged.connect(on_playback_state_changed)
+        player.errorOccurred.connect(on_error)
+        player.mediaStatusChanged.connect(on_media_status_changed)
+
+        # Volume
+        audio_out.setVolume(dlg.sliderVolume.value() / 100.0)
+        dlg.sliderVolume.valueChanged.connect(
+            lambda v: audio_out.setVolume(v / 100.0)
+        )
+
+        # ── Transport controls ────────────────────────────────────────────
+        def on_play_pause():
+            if player.playbackState() == QMediaPlayer.PlayingState:
+                player.pause()
+            else:
+                player.play()
+
+        def on_stop():
+            player.stop()
+            dlg.btnPlayPause.setText("▶ Play")
+
+        def on_rewind():
+            player.setPosition(max(0, player.position() - 5000))
+
+        def on_forward():
+            player.setPosition(min(state["duration_ms"], player.position() + 5000))
+
+        def on_seek_pressed():
+            state["user_seeking"] = True
+
+        def on_seek_released():
+            player.setPosition(dlg.sliderSeek.value())
+            state["user_seeking"] = False
+
+        def on_seek_moved(val: int):
+            dlg.lblPosition.setText(ms_to_hms(val))
+
+        def on_speed_changed(idx: int):
+            speed = SPEED_MAP[idx] if 0 <= idx < len(SPEED_MAP) else 1.0
+            player.setPlaybackRate(speed)
+            dlg.lblStatus.setText(f"Speed: {speed}×")
+
+        def on_snapshot():
+            """Capture current frame via ffmpeg at the exact playback position."""
+            pos_sec = player.position() / 1000.0
+            row = state["row"]
+            if row >= len(self.queue_items):
+                return
+            fpath = self.queue_items[row]["path"]
+            out_path, _ = QFileDialog.getSaveFileName(
+                dlg, "Save Snapshot",
+                os.path.join(os.path.expanduser("~"), f"snapshot_{int(pos_sec)}s.png"),
+                "Images (*.png *.jpg)"
+            )
+            if not out_path:
+                return
+            ffmpeg_bin = get_binary_path("ffmpeg")
+            cmd = [ffmpeg_bin, "-y", "-ss", f"{pos_sec:.3f}", "-i", fpath,
+                   "-frames:v", "1", "-q:v", "2", out_path]
+            try:
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                dlg.lblStatus.setText(f"Snapshot saved: {os.path.basename(out_path)}")
+            except Exception as e:
+                dlg.lblStatus.setText(f"Snapshot error: {e}")
+
+        def on_prev():
+            was_playing = player.playbackState() == QMediaPlayer.PlayingState
+            load_file(state["row"] - 1)
+            if not was_playing:
+                player.pause()
+
+        def on_next():
+            was_playing = player.playbackState() == QMediaPlayer.PlayingState
+            load_file(state["row"] + 1)
+            if not was_playing:
+                player.pause()
+
+        def on_add_to_queue():
+            row = state["row"]
+            if row < len(self.queue_items):
+                fpath = self.queue_items[row]["path"]
+                # Already in queue, notify
+                dlg.lblStatus.setText(f"'{os.path.basename(fpath)}' is already in the queue.")
+            else:
+                dlg.lblStatus.setText("No file loaded.")
+
+        def on_close():
+            player.stop()
+            player.setSource(QUrl())
+            dlg.accept()
+
+        # ── Connect all signals ───────────────────────────────────────────
+        dlg.btnPlayPause.clicked.connect(on_play_pause)
+        dlg.btnStop.clicked.connect(on_stop)
+        dlg.btnRewind.clicked.connect(on_rewind)
+        dlg.btnForward.clicked.connect(on_forward)
+        dlg.sliderSeek.sliderPressed.connect(on_seek_pressed)
+        dlg.sliderSeek.sliderReleased.connect(on_seek_released)
+        dlg.sliderSeek.sliderMoved.connect(on_seek_moved)
+        dlg.comboSpeed.currentIndexChanged.connect(on_speed_changed)
+        dlg.btnSnapshot.clicked.connect(on_snapshot)
+        dlg.btnPrevFile.clicked.connect(on_prev)
+        dlg.btnNextFile.clicked.connect(on_next)
+        dlg.btnAddToQueue.clicked.connect(on_add_to_queue)
+        dlg.btnClose.clicked.connect(on_close)
+
+        # ── Keyboard shortcuts ────────────────────────────────────────────
+        QShortcut(QKeySequence(Qt.Key_Space), dlg).activated.connect(on_play_pause)
+        QShortcut(QKeySequence(Qt.Key_Left), dlg).activated.connect(on_rewind)
+        QShortcut(QKeySequence(Qt.Key_Right), dlg).activated.connect(on_forward)
+        QShortcut(QKeySequence(Qt.Key_Escape), dlg).activated.connect(on_close)
+
+        # ── Initial load ──────────────────────────────────────────────────
+        load_file(row_idx)
+        dlg.exec()
+        # Ensure cleanup even if dialog closed via X button
+        player.stop()
+        player.setSource(QUrl())
 
     # Phase 2: Batch Execution Hooks, Automation & Scheduling
     def open_delay_timer_dialog(self):
@@ -4360,6 +5410,427 @@ class FFBatchApp(QMainWindow):
         dlg.btnWizardFinish.clicked.connect(on_finish)
         dlg.btnWizardCancel.clicked.connect(dlg.reject)
         dlg.exec()
+
+    def open_loudness_norm_dialog(self):
+        """Audio Loudness Normalization dialog for EBU R128 and ITU-R BS.1770."""
+        dlg = load_ui_widget("ui/loudness_norm_dialog.ui", self)
+        measured_results = {}
+
+        # Populate Presets
+        dlg.comboLoudPresets.clear()
+        preset_names = list(LOUDNORM_PRESETS.keys())
+        for name in preset_names:
+            dlg.comboLoudPresets.addItem(name)
+
+        def update_generated_display():
+            i = dlg.spinIntegrated.value()
+            lra = dlg.spinLRA.value()
+            tp = dlg.spinTruePeak.value()
+            cmd_filter = build_loudnorm_filter(i, lra, tp, measured_results if measured_results else None)
+            dlg.txtGeneratedFilter.setText(cmd_filter)
+
+        def on_preset_changed(idx):
+            if idx < 0 or idx >= len(preset_names):
+                return
+            p_data = LOUDNORM_PRESETS[preset_names[idx]]
+            dlg.spinIntegrated.setValue(p_data["i"])
+            dlg.spinLRA.setValue(p_data["lra"])
+            dlg.spinTruePeak.setValue(p_data["tp"])
+            dlg.lblPresetDescription.setText(p_data.get("desc", ""))
+            update_generated_display()
+
+        dlg.comboLoudPresets.currentIndexChanged.connect(on_preset_changed)
+        dlg.spinIntegrated.valueChanged.connect(lambda _: update_generated_display())
+        dlg.spinLRA.valueChanged.connect(lambda _: update_generated_display())
+        dlg.spinTruePeak.valueChanged.connect(lambda _: update_generated_display())
+
+        # Set default preset
+        on_preset_changed(0)
+
+        def on_measure_selected():
+            selected_indexes = self.ui.tableQueue.selectionModel().selectedRows()
+            if not selected_indexes:
+                QMessageBox.warning(dlg, "No Selection", "Please select a media file in the queue table to measure.")
+                return
+            row = selected_indexes[0].row()
+            if row < 0 or row >= len(self.queue_items):
+                return
+            file_path = self.queue_items[row]["path"]
+
+            dlg.lblAnalysisStatus.setText("Measuring audio loudness (Pass 1)...")
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            dlg.btnAnalyzeSelected.setEnabled(False)
+            try:
+                ok, data, msg = analyze_audio_loudness(file_path)
+                if ok:
+                    measured_results.clear()
+                    measured_results.update(data)
+                    dlg.lblAnalysisStatus.setText(f"Pass 1 measured: I={data.get('input_i')} LUFS, TP={data.get('input_tp')} dBTP")
+                    update_generated_display()
+                else:
+                    QMessageBox.warning(dlg, "Measurement Failed", f"Could not analyze audio: {msg}")
+                    dlg.lblAnalysisStatus.setText("Measurement failed.")
+            finally:
+                dlg.btnAnalyzeSelected.setEnabled(True)
+                QApplication.restoreOverrideCursor()
+
+        dlg.btnAnalyzeSelected.clicked.connect(on_measure_selected)
+
+        def on_apply():
+            filter_str = dlg.txtGeneratedFilter.text().strip()
+            if filter_str:
+                curr = self.ui.txtParameters.text().strip()
+                if curr:
+                    self.ui.txtParameters.setText(f"{curr} {filter_str}")
+                else:
+                    self.ui.txtParameters.setText(filter_str)
+                self.ui.txtLog.appendPlainText(f">>> Injected audio loudness normalization filter: {filter_str}")
+            dlg.accept()
+
+        dlg.btnApplyFilter.clicked.connect(on_apply)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def show_error_details_dialog(self, row_idx: int):
+        """Displays full failure diagnostics and SQLite audit trace for a failed item."""
+        if row_idx < 0 or row_idx >= len(self.queue_items):
+            return
+        item = self.queue_items[row_idx]
+        file_path = item.get("path", "")
+        err_info = db_get_last_error(file_path)
+
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle("FFmpeg Task Failure Diagnostics")
+        dlg.resize(680, 420)
+        layout = QVBoxLayout(dlg)
+
+        layout.addWidget(QLabel(f"<b>File:</b> {os.path.basename(file_path)}"))
+        if err_info:
+            layout.addWidget(QLabel(f"<b>Failed At:</b> {err_info.get('completed_at', 'N/A')}"))
+            layout.addWidget(QLabel("<b>FFmpeg Parameters Used:</b>"))
+            txt_params = QPlainTextEdit()
+            txt_params.setReadOnly(True)
+            txt_params.setMaximumHeight(60)
+            txt_params.setPlainText(err_info.get("params", ""))
+            layout.addWidget(txt_params)
+
+            layout.addWidget(QLabel("<b>Error Diagnostic Output:</b>"))
+            txt_err = QPlainTextEdit()
+            txt_err.setReadOnly(True)
+            txt_err.setPlainText(err_info.get("error_msg", "No detailed error captured."))
+            layout.addWidget(txt_err)
+        else:
+            layout.addWidget(QLabel("No historical failure trace recorded for this file in database."))
+
+        bbox = QDialogButtonBox(QDialogButtonBox.Close)
+        bbox.rejected.connect(dlg.reject)
+        layout.addWidget(bbox)
+        dlg.exec()
+
+    def open_vmaf_dialog(self):
+        """Opens Objective Video Quality Measurement dialog (VMAF / SSIM / PSNR)."""
+        from core.vmaf_engine import compute_video_quality
+        dlg = load_ui_widget("ui/vmaf_dialog.ui", self)
+
+        # Pre-fill reference from first queue item if available
+        if self.queue_items:
+            dlg.txtRefFile.setText(self.queue_items[0].get("path", ""))
+
+        def browse_ref():
+            f, _ = QFileDialog.getOpenFileName(dlg, "Select Reference Source Video", "", "Videos (*.mp4 *.mkv *.mov *.avi *.webm)")
+            if f: dlg.txtRefFile.setText(f)
+
+        def browse_dist():
+            f, _ = QFileDialog.getOpenFileName(dlg, "Select Encoded Distorted Video", "", "Videos (*.mp4 *.mkv *.mov *.avi *.webm)")
+            if f: dlg.txtDistFile.setText(f)
+
+        dlg.btnBrowseRef.clicked.connect(browse_ref)
+        dlg.btnBrowseDist.clicked.connect(browse_dist)
+
+        def run_analysis():
+            ref = dlg.txtRefFile.text().strip()
+            dist = dlg.txtDistFile.text().strip()
+            if not ref or not dist:
+                QMessageBox.warning(dlg, "Files Required", "Please select both reference and encoded video files.")
+                return
+
+            metric_text = dlg.comboMetric.currentText()
+            metric_key = "vmaf" if "VMAF" in metric_text else ("psnr" if "PSNR" in metric_text else "ssim")
+
+            dlg.btnComputeScore.setEnabled(False)
+            dlg.lblScoreResult.setText("Analyzing video frames...")
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                ok, scores, logs = compute_video_quality(ref, dist, metric=metric_key)
+                dlg.txtQualityLog.setPlainText(logs)
+                if ok and scores:
+                    score_strs = [f"{k.upper()}: {v:.3f}" for k, v in scores.items()]
+                    dlg.lblScoreResult.setText(f"<b>Score:</b> {' | '.join(score_strs)}")
+                elif ok:
+                    dlg.lblScoreResult.setText("Quality assessment completed (check log for details).")
+                else:
+                    dlg.lblScoreResult.setText(f"Analysis failed: {logs[:100]}")
+            finally:
+                dlg.btnComputeScore.setEnabled(True)
+                QApplication.restoreOverrideCursor()
+
+        dlg.btnComputeScore.clicked.connect(run_analysis)
+        dlg.buttonBox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    def apply_hdr_tonemap_preset(self):
+        """Appends HDR10 to SDR BT.709 color space tone-mapping filter to active parameters."""
+        from core.tonemap_engine import TONEMAP_PRESETS
+        filter_str = TONEMAP_PRESETS["HDR10 to SDR BT.709 (High Quality Mobius)"]["filter"]
+        curr = self.ui.txtParameters.text().strip()
+        self.ui.txtParameters.setText(f"{curr} {filter_str}".strip())
+        self.ui.txtLog.appendPlainText(f">>> Injected HDR10 to SDR tone-mapping filter:\n{filter_str}")
+        QMessageBox.information(
+            self,
+            "Tone-Mapping Filter Injected",
+            "Injected high-quality zscale Mobius tone-mapping filter into Parameters.\n\n"
+            "Prevents washed-out colors when converting HDR10 BT.2020 content to 8-bit SDR BT.709."
+        )
+
+    def _on_hot_file_detected(self, file_path: str):
+        """Called automatically when hot folder watchdog detects a newly copied media file."""
+        self.ui.txtLog.appendPlainText(f">>> [Hot Folder Watchdog] New file detected: {os.path.basename(file_path)}")
+        self.add_file_to_queue(file_path)
+        if getattr(self, "_hot_folder_auto_start", False):
+            if not self.active_tasks:
+                self.start_processing()
+
+    def open_hot_folder_dialog(self):
+        """Configure and toggle automated hot folder monitoring."""
+        dlg = load_ui_widget("ui/hot_folder_dialog.ui", self)
+        dlg.txtWatchDir.setText(self.hot_folder_watchdog.watch_dir)
+
+        if self.hot_folder_watchdog.is_active:
+            dlg.lblWatchStatus.setText(f"Status: Monitoring {os.path.basename(self.hot_folder_watchdog.watch_dir)}")
+            dlg.btnToggleWatch.setText("⏹ Stop Watchdog")
+            dlg.btnToggleWatch.setStyleSheet("font-weight: bold; background-color: #27ae60; color: white;")
+        else:
+            dlg.lblWatchStatus.setText("Status: Stopped")
+            dlg.btnToggleWatch.setText("▶ Start Watchdog")
+
+        def browse():
+            d = QFileDialog.getExistingDirectory(dlg, "Select Hot Folder to Monitor")
+            if d: dlg.txtWatchDir.setText(d)
+
+        dlg.btnBrowseWatchDir.clicked.connect(browse)
+
+        def toggle():
+            if self.hot_folder_watchdog.is_active:
+                self.hot_folder_watchdog.stop_watching()
+                dlg.lblWatchStatus.setText("Status: Stopped")
+                dlg.btnToggleWatch.setText("▶ Start Watchdog")
+                dlg.btnToggleWatch.setStyleSheet("font-weight: bold;")
+                dlg.txtHotLog.appendPlainText("Watchdog stopped.")
+            else:
+                target_d = dlg.txtWatchDir.text().strip()
+                if not target_d or not os.path.isdir(target_d):
+                    QMessageBox.warning(dlg, "Invalid Folder", "Please specify a valid folder path.")
+                    return
+                self._hot_folder_auto_start = dlg.chkAutoStartBatch.isChecked()
+                if self.hot_folder_watchdog.start_watching(target_d):
+                    dlg.lblWatchStatus.setText(f"Status: Monitoring {os.path.basename(target_d)}")
+                    dlg.btnToggleWatch.setText("⏹ Stop Watchdog")
+                    dlg.btnToggleWatch.setStyleSheet("font-weight: bold; background-color: #27ae60; color: white;")
+                    dlg.txtHotLog.appendPlainText(f"Watchdog started for: {target_d}")
+                else:
+                    QMessageBox.warning(dlg, "Error", "Could not monitor directory.")
+
+        dlg.btnToggleWatch.clicked.connect(toggle)
+        dlg.buttonBox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    def open_gpu_filter_dialog(self):
+        """Configure GPU OpenCL / Vulkan hardware filter acceleration."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QComboBox, QLabel, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle("GPU Filter Acceleration (OpenCL / Vulkan)")
+        dlg.resize(500, 260)
+        layout = QVBoxLayout(dlg)
+
+        desc = QLabel(
+            "Hardware-accelerated video filtering offloads compute-heavy operations "
+            "(e.g., scaling, deinterlacing, color correction) to your GPU."
+        )
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        form = QFormLayout()
+        combo_backend = QComboBox()
+        combo_backend.addItem("OpenCL (Intel / AMD / NVIDIA)", "-init_hw_device opencl=gpu:0.0 -filter_hw_device gpu")
+        combo_backend.addItem("Vulkan Generic GPU Acceleration", "-init_hw_device vulkan=vk:0 -filter_hw_device vk")
+        combo_backend.addItem("VAAPI GPU Scale Filter", "-vaapi_device /dev/dri/renderD128 -vf 'format=nv12,hwupload,scale_vaapi=w=-2:h=1080'")
+        form.addRow("Hardware Filter Backend:", combo_backend)
+        layout.addLayout(form)
+
+        bbox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(bbox)
+
+        def on_apply():
+            flag = combo_backend.currentData()
+            if flag:
+                curr = self.ui.txtParameters.text().strip()
+                self.ui.txtParameters.setText(f"{flag} {curr}".strip())
+                self.ui.txtLog.appendPlainText(f">>> Injected GPU filter hardware acceleration flags: {flag}")
+            dlg.accept()
+
+        bbox.accepted.connect(on_apply)
+        bbox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    def export_queue_to_bash_script(self):
+        """Exports the entire active queue into an executable bash script."""
+        if not self.queue_items:
+            QMessageBox.information(self, "Export Bash Script", "The processing queue is empty. Add files first.")
+            return
+
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Queue as Standalone Bash Script", "batch_transcode.sh", "Bash Scripts (*.sh)"
+        )
+        if not out_path:
+            return
+
+        # Build list of jobs formatted with current user parameters
+        params = self.ui.txtParameters.text().strip()
+        extra = self.ui.txtTwoPassParams.text().strip() if hasattr(self.ui, "txtTwoPassParams") else ""
+        fmt = self.ui.comboOutputFormat.currentText().strip()
+        custom_dest = self.ui.chkCustomOutput.isChecked() if hasattr(self.ui, "chkCustomOutput") else False
+        dest_dir = self.ui.txtOutputDir.text().strip() if hasattr(self.ui, "txtOutputDir") else ""
+
+        queue_data = []
+        for item in self.queue_items:
+            src = item.get("path", "")
+            s_dir, s_file = os.path.split(src)
+            b_name, _ = os.path.splitext(s_file)
+            target_dir = dest_dir if (custom_dest and dest_dir) else s_dir
+            out_file = os.path.join(target_dir, f"{b_name}.{fmt}")
+            queue_data.append({
+                "input_file": src,
+                "output_file": out_file,
+                "params": params,
+                "extra_params": extra
+            })
+
+        simultaneous = self.ui.spinSimultaneous.value() if hasattr(self.ui, "spinSimultaneous") else 1
+        success = generate_batch_bash_script(queue_data, out_path, parallel_jobs=simultaneous)
+        if success:
+            self.ui.txtLog.appendPlainText(f">>> Successfully exported queue to executable script: {out_path}")
+            QMessageBox.information(
+                self,
+                "Bash Script Exported",
+                f"Successfully exported {len(queue_data)} transcode jobs to:\n\n{out_path}\n\n"
+                f"Concurrency: {simultaneous} workers.\nYou can run it directly: bash {os.path.basename(out_path)}"
+            )
+        else:
+            QMessageBox.critical(self, "Export Failed", "Failed to generate bash script. Check write permissions.")
+
+    def save_queue_to_file(self):
+        """Saves current queue configuration to a JSON or CSV file for cross-system portability."""
+        if not self.queue_items:
+            QMessageBox.information(self, "Save Queue", "Queue is empty. Add items first.")
+            return
+
+        path, flt = QFileDialog.getSaveFileName(
+            self, "Save Queue to File", "ffmpeg_batch_queue.json", "JSON Queue (*.json);;CSV Queue (*.csv)"
+        )
+        if not path:
+            return
+
+        try:
+            if path.endswith(".csv") or "CSV" in flt:
+                import csv
+                with open(path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["Index", "FilePath", "Duration", "VideoCodec", "AudioCodec", "SizeMB", "Status"])
+                    for idx, item in enumerate(self.queue_items, start=1):
+                        meta = item.get("meta", {})
+                        writer.writerow([
+                            idx,
+                            item.get("path", ""),
+                            meta.get("duration", 0),
+                            meta.get("video_codec", ""),
+                            meta.get("audio_codec", ""),
+                            round(meta.get("size", 0) / (1024 * 1024), 2),
+                            item.get("status", "Pending")
+                        ])
+            else:
+                data = {
+                    "version": "2.1.0",
+                    "timestamp": time.time(),
+                    "queue": self.queue_items
+                }
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+
+            self.ui.txtLog.appendPlainText(f">>> Queue successfully saved to {path}")
+            QMessageBox.information(self, "Queue Saved", f"Saved {len(self.queue_items)} queue items to:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", f"Failed to save queue: {e}")
+
+    def load_queue_from_file(self):
+        """Loads queue items from a saved JSON or CSV file."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load Queue from File", "", "Supported Formats (*.json *.csv);;JSON Queue (*.json);;CSV Queue (*.csv)"
+        )
+        if not path or not os.path.exists(path):
+            return
+
+        try:
+            added = 0
+            if path.endswith(".csv"):
+                import csv
+                with open(path, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    header = next(reader, None)
+                    for row in reader:
+                        if len(row) >= 2 and os.path.exists(row[1]):
+                            self.add_file_to_queue(row[1])
+                            added += 1
+            else:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                items = data.get("queue", []) if isinstance(data, dict) else data
+                for it in items:
+                    fpath = it.get("path", "") if isinstance(it, dict) else str(it)
+                    if fpath and os.path.exists(fpath):
+                        self.add_file_to_queue(fpath)
+                        added += 1
+
+            self.ui.txtLog.appendPlainText(f">>> Loaded {added} items from {path}")
+            QMessageBox.information(self, "Queue Loaded", f"Successfully imported {added} files into the queue.")
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", f"Failed to load queue file: {e}")
+
+    def install_desktop_integration(self):
+        """Installs the FreeDesktop .desktop file to ~/.local/share/applications/ for full desktop integration."""
+        target_dir = os.path.expanduser("~/.local/share/applications")
+        os.makedirs(target_dir, exist_ok=True)
+        desktop_dest = os.path.join(target_dir, "in.synorastudio.FFmpegBatchGUI.desktop")
+
+        source_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "in.synorastudio.FFmpegBatchGUI.desktop")
+        try:
+            import shutil
+            shutil.copyfile(source_file, desktop_dest)
+            os.chmod(desktop_dest, 0o755)
+
+            # Update desktop database if command is available
+            subprocess.run(["update-desktop-database", target_dir], capture_output=True, timeout=2)
+
+            self.ui.txtLog.appendPlainText(f">>> Desktop integration file registered: {desktop_dest}")
+            QMessageBox.information(
+                self,
+                "Desktop Integration Installed",
+                "Desktop shortcut and File Manager context menu integration installed!\n\n"
+                f"Location: {desktop_dest}\n"
+                "You can now right-click any media file in your file manager to open or enqueue it."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Installation Error", f"Failed to install desktop shortcut: {e}")
 
     def show_about(self):
         QMessageBox.about(

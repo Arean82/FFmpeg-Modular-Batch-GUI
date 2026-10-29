@@ -61,6 +61,24 @@
          </item>
         </layout>
        </item>
+       <item>
+        <layout class="QHBoxLayout" name="bundleBtnLayout">
+         <item>
+          <widget class="QPushButton" name="btnExportPresets">
+           <property name="text">
+            <string>Export Bundle...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btnImportPresets">
+           <property name="text">
+            <string>Import Bundle...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="rightWidget" native="true">

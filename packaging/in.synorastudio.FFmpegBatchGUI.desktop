@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=FFmpeg Batch AV Converter
+Comment=Modular Multi-threaded Audio/Video Batch Processor for Linux
+Exec=ffmpeg-batch-gui %F
+Icon=in.synorastudio.FFmpegBatchGUI
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;Audio;Converter;Qt;
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;audio/mpeg;audio/x-wav;audio/flac;
+Keywords=ffmpeg;video;audio;converter;transcode;batch;
+StartupWMClass=ffmpeg-batch-gui

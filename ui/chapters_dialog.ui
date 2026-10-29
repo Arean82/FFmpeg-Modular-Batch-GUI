@@ -125,6 +125,13 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="btnAutoIntervalChapters">
+       <property name="text">
+        <string>⚡ Auto Interval (Every 5m)...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="btnInjectChapters">
        <property name="text">
         <string>Inject into Selected Video</string>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LoudnessNormDialog</class>
+ <widget class="QDialog" name="LoudnessNormDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>440</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Audio Loudness Normalization (EBU R128 / ITU-R BS.1770)</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainLoudLayout">
+   <item>
+    <widget class="QGroupBox" name="grpPresets">
+     <property name="title">
+      <string>Broadcast &amp; Streaming Standards</string>
+     </property>
+     <layout class="QFormLayout" name="presetFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblPreset">
+        <property name="text">
+         <string>Standard Target:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="comboLoudPresets"/>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QLabel" name="lblPresetDescription">
+        <property name="text">
+         <string>Preset description...</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpParameters">
+     <property name="title">
+      <string>Target Measurements</string>
+     </property>
+     <layout class="QGridLayout" name="gridParameters">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblIntegrated">
+        <property name="text">
+         <string>Integrated Loudness (I):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QDoubleSpinBox" name="spinIntegrated">
+        <property name="minimum">
+         <double>-70.0</double>
+        </property>
+        <property name="maximum">
+         <double>-5.0</double>
+        </property>
+        <property name="value">
+         <double>-14.0</double>
+        </property>
+        <property name="suffix">
+         <string> LUFS</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblLRA">
+        <property name="text">
+         <string>Loudness Range (LRA):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QDoubleSpinBox" name="spinLRA">
+        <property name="minimum">
+         <double>1.0</double>
+        </property>
+        <property name="maximum">
+         <double>50.0</double>
+        </property>
+        <property name="value">
+         <double>11.0</double>
+        </property>
+        <property name="suffix">
+         <string> LU</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblTruePeak">
+        <property name="text">
+         <string>Maximum True Peak (TP):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QDoubleSpinBox" name="spinTruePeak">
+        <property name="minimum">
+         <double>-9.0</double>
+        </property>
+        <property name="maximum">
+         <double>0.0</double>
+        </property>
+        <property name="value">
+         <double>-1.0</double>
+        </property>
+        <property name="suffix">
+         <string> dBTP</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpAnalysis">
+     <property name="title">
+      <string>Two-Pass Measurement (Optional)</string>
+     </property>
+     <layout class="QHBoxLayout" name="analysisLayout">
+      <item>
+       <widget class="QPushButton" name="btnAnalyzeSelected">
+        <property name="text">
+         <string>Measure Active File (Pass 1)...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblAnalysisStatus">
+        <property name="text">
+         <string>Single-pass dynamic mode active.</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpGenerated">
+     <property name="title">
+      <string>Generated Audio Filter</string>
+     </property>
+     <layout class="QHBoxLayout" name="generatedLayout">
+      <item>
+       <widget class="QLineEdit" name="txtGeneratedFilter">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="hSpacerLoud">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCancel">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnApplyFilter">
+       <property name="text">
+        <string>Apply to Parameters</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

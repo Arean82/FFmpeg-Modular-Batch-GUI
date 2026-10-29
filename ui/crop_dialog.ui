@@ -68,6 +68,13 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="btnInteractiveCrop">
+       <property name="text">
+        <string>✂ Visual Rubber-Band Crop...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="cropSpacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>

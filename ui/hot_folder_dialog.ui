@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>HotFolderDialog</class>
+ <widget class="QDialog" name="HotFolderDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>560</width>
+    <height>340</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Automated Hot Folder Watchdog Service</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainHotLayout">
+   <item>
+    <widget class="QLabel" name="lblDesc">
+     <property name="text">
+      <string>Monitor an input directory for new incoming media files and automatically queue them for batch conversion:</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpFolderConfig">
+     <property name="title">
+      <string>Watch Directory</string>
+     </property>
+     <layout class="QGridLayout" name="gridConfig">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblWatchPath">
+        <property name="text">
+         <string>Input Folder:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <layout class="QHBoxLayout" name="browseRow">
+        <item>
+         <widget class="QLineEdit" name="txtWatchDir">
+          <property name="placeholderText">
+           <string>/path/to/watch/folder...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnBrowseWatchDir">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QCheckBox" name="chkAutoStartBatch">
+        <property name="text">
+         <string>Automatically start batch conversion when new file is detected</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="statusActionLayout">
+     <item>
+      <widget class="QPushButton" name="btnToggleWatch">
+       <property name="minimumSize">
+        <size>
+         <width>150</width>
+         <height>36</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>▶ Start Watchdog</string>
+       </property>
+       <property name="styleSheet">
+        <string>font-weight: bold;</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblWatchStatus">
+       <property name="text">
+        <string>Status: Stopped</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="hotSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QPlainTextEdit" name="txtHotLog">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="placeholderText">
+      <string>Watchdog activity logs...</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

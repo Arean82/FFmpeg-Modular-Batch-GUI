@@ -1655,9 +1655,50 @@
            <item>
             <layout class="QHBoxLayout" name="urlRow1Layout">
              <item>
+              <widget class="QLabel" name="lblUrlQuality">
+               <property name="text">
+                <string>Quality Profile:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboUrlQuality">
+               <item>
+                <property name="text">
+                 <string>Best Video + Best Audio (Default)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>1080p High Definition Max</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>720p Standard Definition</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>480p Low Bandwidth</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Audio Only (MP3 320k Extract)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Audio Only (Opus Best Quality)</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item>
               <widget class="QLabel" name="lblUrlParams">
                <property name="text">
-                <string>FFmpeg Parameters:</string>
+                <string>Parameters:</string>
                </property>
               </widget>
              </item>

@@ -27,7 +27,8 @@ class FFmpegTask(QRunnable):
         two_pass: bool = False,
         pre_input: str = "",
         overwrite: bool = True,
-        cpu_priority: str = "Normal"
+        cpu_priority: str = "Normal",
+        hang_timeout: float = 60.0
     ):
         super().__init__()
         self.file_path = file_path
@@ -38,6 +39,7 @@ class FFmpegTask(QRunnable):
         self.pre_input = pre_input.strip() if pre_input else ""
         self.overwrite = overwrite
         self.cpu_priority = cpu_priority
+        self.hang_timeout = hang_timeout
         self.signals = WorkerSignals()
         self.is_cancelled = False
         self.is_paused = False
@@ -199,17 +201,27 @@ class FFmpegTask(QRunnable):
             )
             self._apply_priority()
 
+            last_output_time = time.time()
             for line in self.process.stdout:
                 while self.is_paused and not self.is_cancelled:
                     time.sleep(0.2)
+                    last_output_time = time.time()
                 if self.is_cancelled:
                     self.process.terminate()
                     self.signals.finished.emit(self.file_path, False, "Cancelled")
                     return
 
+                # Hang detection watchdog: kill if frozen with no stdout for hang_timeout
+                if self.hang_timeout > 0 and (time.time() - last_output_time > self.hang_timeout):
+                    self.process.kill()
+                    self.signals.finished.emit(self.file_path, False, f"Process hung: no output for {int(self.hang_timeout)}s")
+                    return
+
                 line = line.strip()
                 if not line:
                     continue
+
+                last_output_time = time.time()
 
                 match = time_pattern.search(line)
                 if match and self.total_duration > 0:

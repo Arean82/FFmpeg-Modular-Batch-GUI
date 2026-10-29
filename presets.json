@@ -1,230 +1,236 @@
 {
-  "MP4 Stream copy": {
-    "args": "-c copy",
+  "Batch create videos from a single image and audio file to MP4": {
+    "category": "Community",
     "ext": "mp4",
-    "category": "Video",
-    "desc": "MP4 Stream copy"
+    "args": "-c:v libx264 -preset veryfast -vf fps=1 -crf 23 -tune stillimage -pix_fmt yuv420p -vf scale=1280:720 -c:a aac -shortest",
+    "desc": "Batch create videos from a single image and audio file to MP4"
+  },
+  "Burn subtitles from source file  (first subtitle stream) encoded as h264 and audio stream copy to MKV": {
+    "category": "Community",
+    "ext": "mkv",
+    "args": "-c:v libx264 -crf 23 -vf subtitles=%ff:stream_index=0 -c:a copy -sn",
+    "desc": "Burn subtitles from source file  (first subtitle stream) encoded as h264 and audio stream copy to MKV"
   },
   "Convert audio track to AAC HQ 2 channels": {
-    "args": "-c:v copy -c:a aac -cutoff 20K -b:a 256K -ac 2",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v copy -c:a aac -cutoff 20K -b:a 256K -ac 2",
     "desc": "Convert audio track to AAC HQ 2 channels"
   },
   "Convert audio tracks to AC3 2 channels": {
-    "args": "-c:v copy -c:a ac3 -b:a 256K -ac 2 -c:s copy",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v copy -c:a ac3 -b:a 256K -ac 2 -c:s copy",
     "desc": "Convert audio tracks to AC3 2 channels"
   },
-  "Convert to ProRes MKV": {
-    "args": "-c:v prores_ks -profile:v standard -vendor:v ap10 -pix_fmt yuv422p10le -c:a pcm_s16le -chunk_size 64K",
-    "ext": "mkv",
-    "category": "Video",
-    "desc": "Convert to ProRes MKV"
+  "Convert to FLAC 16/44,1KHz 2 channels": {
+    "category": "Audio",
+    "ext": "flac",
+    "args": "-vn -c:a flac -ar 44100 -sample_fmt s16 -ac 2",
+    "desc": "Convert to FLAC 16/44,1KHz 2 channels"
   },
   "Convert to H264 HQ + Source Audio": {
-    "args": "-c:v libx264 -crf 20 -c:a copy",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v libx264 -crf 20 -c:a copy",
     "desc": "Convert to H264 HQ + Source Audio"
   },
   "Convert to H264 Ultrafast": {
-    "args": "-c:v libx264 -crf 23 -preset ultrafast -c:a copy",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v libx264 -crf 23 -preset ultrafast -c:a copy",
     "desc": "Convert to H264 Ultrafast"
   },
   "Convert to H265 HQ + Source Audio": {
-    "args": "-c:v libx265 -crf 23 -c:a copy",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v libx265 -crf 23 -c:a copy",
     "desc": "Convert to H265 HQ + Source Audio"
   },
-  "Resize 1280x720 H264-AAC": {
-    "args": "-c:v libx264 -crf 23 -vf scale=1280:720 -c:a aac -b:a 128K",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Resize 1280x720 H264-AAC"
-  },
-  "Rotate 90 degrees Clockwise to H264 + Source audio": {
-    "args": "-c:v libx264 -crf 21 -vf \"transpose=1\" -c:a copy",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Rotate 90 degrees Clockwise to H264 + Source audio"
-  },
-  "Rotate 90 degrees CountercLockwise and Vertical Flip to H264 + Source audio": {
-    "args": "-c:v libx264 -crf 21 -vf \"transpose=0\" -c:a copy",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Rotate 90 degrees CountercLockwise and Vertical Flip to H264 + Source audio"
-  },
-  "Rotate 90 degrees CounterClockwise to H264 + Source audio": {
-    "args": "-c:v libx264 -crf 21 -vf \"transpose=2\" -c:a copy",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Rotate 90 degrees CounterClockwise to H264 + Source audio"
-  },
-  "Rotate 90 degrees Clockwise and Vertical Flip to H264 + Source audio": {
-    "args": "-c:v libx264 -crf 21 -vf \"transpose=3\" -c:a copy",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Rotate 90 degrees Clockwise and Vertical Flip to H264 + Source audio"
-  },
-  "Rotate 180 degrees to H264 + Source audio": {
-    "args": "-c:v libx264 -crf 21 -vf \"transpose=2, transpose=2\" -c:a copy",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Rotate 180 degrees to H264 + Source audio"
-  },
-  "Remove subtitles to MP4": {
-    "args": "-map 0 -c copy -sn",
-    "ext": "mp4",
-    "category": "Video",
-    "desc": "Remove subtitles to MP4"
-  },
-  "Convert to FLAC 16/44,1KHz 2 channels": {
-    "args": "-vn -c:a flac -ar 44100 -sample_fmt s16 -ac 2",
-    "ext": "flac",
-    "category": "Audio",
-    "desc": "Convert to FLAC 16/44,1KHz 2 channels"
-  },
-  "Convert to MP3 VBR HQ 2 ch embedded cover": {
-    "args": "-c:v copy -c:a libmp3lame -qscale:a 0 -ac 2",
-    "ext": "mp3",
-    "category": "Audio",
-    "desc": "Convert to MP3 VBR HQ 2 ch embedded cover"
-  },
-  "Convert to MP3 VBR HQ 2 ch": {
-    "args": "-vn -c:a libmp3lame -qscale:a 1 -ac 2",
-    "ext": "mp3",
-    "category": "Audio",
-    "desc": "Convert to MP3 VBR HQ 2 ch"
-  },
   "Convert to MP3 CBR HQ 2 ch": {
-    "args": "-vn -c:a libmp3lame -b:a 224K -ac 2",
-    "ext": "mp3",
     "category": "Audio",
+    "ext": "mp3",
+    "args": "-vn -c:a libmp3lame -b:a 224K -ac 2",
     "desc": "Convert to MP3 CBR HQ 2 ch"
   },
-  "Convert to WAV 16/44,1KHz 2 channels": {
-    "args": "-vn -c:a pcm_s16le -ar 44100 -sample_fmt s16 -ac 2",
-    "ext": "wav",
+  "Convert to MP3 VBR HQ 2 ch": {
     "category": "Audio",
+    "ext": "mp3",
+    "args": "-vn -c:a libmp3lame -qscale:a 1 -ac 2",
+    "desc": "Convert to MP3 VBR HQ 2 ch"
+  },
+  "Convert to MP3 VBR HQ 2 ch embedded cover": {
+    "category": "Audio",
+    "ext": "mp3",
+    "args": "-c:v copy -c:a libmp3lame -qscale:a 0 -ac 2",
+    "desc": "Convert to MP3 VBR HQ 2 ch embedded cover"
+  },
+  "Convert to ProRes MKV": {
+    "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v prores_ks -profile:v standard -vendor:v ap10 -pix_fmt yuv422p10le -c:a pcm_s16le -chunk_size 64K",
+    "desc": "Convert to ProRes MKV"
+  },
+  "Convert to WAV 16/44,1KHz 2 channels": {
+    "category": "Audio",
+    "ext": "wav",
+    "args": "-vn -c:a pcm_s16le -ar 44100 -sample_fmt s16 -ac 2",
     "desc": "Convert to WAV 16/44,1KHz 2 channels"
   },
-  "Extract first subtitle track to SRT": {
-    "args": "-map 0:2 -c:s copy",
-    "ext": "srt",
-    "category": "Subtitle",
-    "desc": "Extract first subtitle track to SRT"
+  "Convert vertical video with black sides, to video 16/9 with blurred background sides 1080p": {
+    "category": "Community",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 21 -vf \"split[original][copy];[copy]scale=ih*16/9:-1,crop=h=iw*9/16,gblur=sigma=20[blurred];[blurred][original]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2,scale=-2:1080\" -c:a copy",
+    "desc": "Convert vertical video with black sides, to video 16/9 with blurred background sides 1080p"
   },
-  "Extract frame as image": {
-    "args": "-vframes 1 -f image2",
-    "ext": "png",
-    "category": "Image",
-    "desc": "Extract frame as image"
+  "Convert vertical video with black sides, to video 16/9 with blurred background sides 720p": {
+    "category": "Community",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 21 -vf \"split[original][copy];[copy]scale=ih*16/9:-1,crop=h=iw*9/16,gblur=sigma=20[blurred];[blurred][original]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2,scale=-2:720\" -c:a copy",
+    "desc": "Convert vertical video with black sides, to video 16/9 with blurred background sides 720p"
+  },
+  "Convert video to rgb uncompressed avi (huge file)": {
+    "category": "Community",
+    "ext": "avi",
+    "args": "-c:v rawvideo -pix_fmt rgb24",
+    "desc": "Convert video to rgb uncompressed avi (huge file)"
+  },
+  "Create duplicated stereoscopic video output": {
+    "category": "Community",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 23 -vf stereo3d=al:sbsl -c:a copy",
+    "desc": "Create duplicated stereoscopic video output"
   },
   "Encode AMD-VCE H264 HQ + Source Audio": {
-    "args": "-c:v h264_amf -rc cqp -qp_p 20 -qp_i 20 -qp_b 20 -c:a copy",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v h264_amf -rc cqp -qp_p 20 -qp_i 20 -qp_b 20 -c:a copy",
     "desc": "Encode AMD-VCE H264 HQ + Source Audio"
   },
   "Encode AMD-VCE HEVC HQ + Source Audio": {
-    "args": "-c:v hevc_amf -rc cqp -qp_p 20 -qp_i 20 -qp_b 20 -c:a copy",
-    "ext": "mkv",
     "category": "Video",
+    "ext": "mkv",
+    "args": "-c:v hevc_amf -rc cqp -qp_p 20 -qp_i 20 -qp_b 20 -c:a copy",
     "desc": "Encode AMD-VCE HEVC HQ + Source Audio"
   },
-  "Record screen at 24 fps + Audio AAC to MKV": {
-    "args": "-r 24 -c:a aac -b:a 128K",
-    "ext": "mkv",
-    "category": "General",
-    "desc": "Record screen at 24 fps + Audio AAC to MKV"
+  "Extract first subtitle track to SRT": {
+    "category": "Subtitle",
+    "ext": "srt",
+    "args": "-map 0:2 -c:s copy",
+    "desc": "Extract first subtitle track to SRT"
   },
-  "Record screen at 15 fps 1280x720 + Audio to MKV": {
-    "args": "-r 15 -vf scale=1280x720 -c:a aac -b:a 128K",
-    "ext": "mkv",
-    "category": "General",
-    "desc": "Record screen at 15 fps 1280x720 + Audio to MKV"
-  },
-  "Record screen at 30 fps Nvidia NVENC + Audio AAC to MKV": {
-    "args": "-c:v h264_nvenc -qp 20 -r 30 -c:a aac -b:a 128K",
-    "ext": "mkv",
-    "category": "GPU",
-    "desc": "Record screen at 30 fps Nvidia NVENC + Audio AAC to MKV"
-  },
-  "Record screen at 25 fps Intel QuickSync + Audio AAC to MKV": {
-    "args": "-c:v  h264_qsv -qp 20 -r 25 -c:a aac -b:a 128K",
-    "ext": "mkv",
-    "category": "GPU",
-    "desc": "Record screen at 25 fps Intel QuickSync + Audio AAC to MKV"
-  },
-  "Join images at 1920px width to MP4 video": {
-    "args": "-c:v libx264 -preset veryfast -vf \"fps=25,format=yuv420p,scale=1920:-2\" -c:a aac -b:a 64K",
-    "ext": "mp4",
-    "category": "General",
-    "desc": "Join images at 1920px width to MP4 video"
-  },
-  "Convert video to rgb uncompressed avi (huge file)": {
-    "args": "-c:v rawvideo -pix_fmt rgb24",
-    "ext": "avi",
-    "category": "Community",
-    "desc": "Convert video to rgb uncompressed avi (huge file)"
+  "Extract frame as image": {
+    "category": "Image",
+    "ext": "png",
+    "args": "-vframes 1 -f image2",
+    "desc": "Extract frame as image"
   },
   "Generate keyframes report to txt file": {
-    "args": "-vstats_file /tmp/stats.txt -vf \"select='eq(pict_type,PICT_TYPE_I)'\" -vsync vfr -frame_pts true -f null -",
-    "ext": "nul",
     "category": "Community",
+    "ext": "nul",
+    "args": "-vstats_file /tmp/stats.txt -vf \"select='eq(pict_type,PICT_TYPE_I)'\" -vsync vfr -frame_pts true -f null -",
     "desc": "Generate keyframes report to txt file"
   },
   "H265 one or two pass encoding usually 1 GB with good quality, with AAC audio": {
-    "args": "-map 0 -c:v libx265 -preset medium -profile:v main10 -b:v 2000K  -x265-params \"min-keyint=23;keyint=250;bframes=8;b-adapt=2;b-pyramid;bframe-bias=0;rc-lookahead=80;lookahead-slices=4;scenecut=40\" -pix_fmt yuv420p10le -c:a aac -b:a 128K",
-    "ext": "mkv",
     "category": "Community",
+    "ext": "mkv",
+    "args": "-map 0 -c:v libx265 -preset medium -profile:v main10 -b:v 2000K  -x265-params \"min-keyint=23;keyint=250;bframes=8;b-adapt=2;b-pyramid;bframe-bias=0;rc-lookahead=80;lookahead-slices=4;scenecut=40\" -pix_fmt yuv420p10le -c:a aac -b:a 128K",
     "desc": "H265 one or two pass encoding usually 1 GB with good quality, with AAC audio"
   },
-  "Convert vertical video with black sides, to video 16/9 with blurred background sides 720p": {
-    "args": "-c:v libx264 -crf 21 -vf \"split[original][copy];[copy]scale=ih*16/9:-1,crop=h=iw*9/16,gblur=sigma=20[blurred];[blurred][original]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2,scale=-2:720\" -c:a copy",
+  "Join images at 1920px width to MP4 video": {
+    "category": "General",
     "ext": "mp4",
-    "category": "Community",
-    "desc": "Convert vertical video with black sides, to video 16/9 with blurred background sides 720p"
+    "args": "-c:v libx264 -preset veryfast -vf \"fps=25,format=yuv420p,scale=1920:-2\" -c:a aac -b:a 64K",
+    "desc": "Join images at 1920px width to MP4 video"
   },
-  "Convert vertical video with black sides, to video 16/9 with blurred background sides 1080p": {
-    "args": "-c:v libx264 -crf 21 -vf \"split[original][copy];[copy]scale=ih*16/9:-1,crop=h=iw*9/16,gblur=sigma=20[blurred];[blurred][original]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2,scale=-2:1080\" -c:a copy",
+  "MP4 Stream copy": {
+    "category": "Video",
     "ext": "mp4",
-    "category": "Community",
-    "desc": "Convert vertical video with black sides, to video 16/9 with blurred background sides 1080p"
+    "args": "-c copy",
+    "desc": "MP4 Stream copy"
+  },
+  "Record screen at 15 fps 1280x720 + Audio to MKV": {
+    "category": "General",
+    "ext": "mkv",
+    "args": "-r 15 -vf scale=1280x720 -c:a aac -b:a 128K",
+    "desc": "Record screen at 15 fps 1280x720 + Audio to MKV"
+  },
+  "Record screen at 24 fps + Audio AAC to MKV": {
+    "category": "General",
+    "ext": "mkv",
+    "args": "-r 24 -c:a aac -b:a 128K",
+    "desc": "Record screen at 24 fps + Audio AAC to MKV"
+  },
+  "Record screen at 25 fps Intel QuickSync + Audio AAC to MKV": {
+    "category": "GPU",
+    "ext": "mkv",
+    "args": "-c:v  h264_qsv -qp 20 -r 25 -c:a aac -b:a 128K",
+    "desc": "Record screen at 25 fps Intel QuickSync + Audio AAC to MKV"
+  },
+  "Record screen at 30 fps Nvidia NVENC + Audio AAC to MKV": {
+    "category": "GPU",
+    "ext": "mkv",
+    "args": "-c:v h264_nvenc -qp 20 -r 30 -c:a aac -b:a 128K",
+    "desc": "Record screen at 30 fps Nvidia NVENC + Audio AAC to MKV"
+  },
+  "Remove subtitles to MP4": {
+    "category": "Video",
+    "ext": "mp4",
+    "args": "-map 0 -c copy -sn",
+    "desc": "Remove subtitles to MP4"
+  },
+  "Resize 1280x720 H264-AAC": {
+    "category": "Video",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 23 -vf scale=1280:720 -c:a aac -b:a 128K",
+    "desc": "Resize 1280x720 H264-AAC"
   },
   "Reverse video and audio (recommended only for short clips due to memory usage)": {
-    "args": "-c:v libx264 -crf 23 -vf reverse -af areverse -c:a aac -b:a 160K",
-    "ext": "mp4",
     "category": "Community",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 23 -vf reverse -af areverse -c:a aac -b:a 160K",
     "desc": "Reverse video and audio (recommended only for short clips due to memory usage)"
   },
-  "Create duplicated stereoscopic video output": {
-    "args": "-c:v libx264 -crf 23 -vf stereo3d=al:sbsl -c:a copy",
+  "Rotate 180 degrees to H264 + Source audio": {
+    "category": "Video",
     "ext": "mp4",
-    "category": "Community",
-    "desc": "Create duplicated stereoscopic video output"
+    "args": "-c:v libx264 -crf 21 -vf \"transpose=2, transpose=2\" -c:a copy",
+    "desc": "Rotate 180 degrees to H264 + Source audio"
   },
-  "Burn subtitles from source file  (first subtitle stream) encoded as h264 and audio stream copy to MKV": {
-    "args": "-c:v libx264 -crf 23 -vf subtitles=%ff:stream_index=0 -c:a copy -sn",
-    "ext": "mkv",
-    "category": "Community",
-    "desc": "Burn subtitles from source file  (first subtitle stream) encoded as h264 and audio stream copy to MKV"
+  "Rotate 90 degrees Clockwise and Vertical Flip to H264 + Source audio": {
+    "category": "Video",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 21 -vf \"transpose=3\" -c:a copy",
+    "desc": "Rotate 90 degrees Clockwise and Vertical Flip to H264 + Source audio"
+  },
+  "Rotate 90 degrees Clockwise to H264 + Source audio": {
+    "category": "Video",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 21 -vf \"transpose=1\" -c:a copy",
+    "desc": "Rotate 90 degrees Clockwise to H264 + Source audio"
+  },
+  "Rotate 90 degrees CounterClockwise to H264 + Source audio": {
+    "category": "Video",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 21 -vf \"transpose=2\" -c:a copy",
+    "desc": "Rotate 90 degrees CounterClockwise to H264 + Source audio"
+  },
+  "Rotate 90 degrees CountercLockwise and Vertical Flip to H264 + Source audio": {
+    "category": "Video",
+    "ext": "mp4",
+    "args": "-c:v libx264 -crf 21 -vf \"transpose=0\" -c:a copy",
+    "desc": "Rotate 90 degrees CountercLockwise and Vertical Flip to H264 + Source audio"
+  },
+  "TestPreset": {
+    "category": "TestCat",
+    "ext": "mp4",
+    "args": "-c:v libx264",
+    "desc": "Test description"
   },
   "To use with trim button: Trim using streamcopy avoiding initial negative pts issue to MP4": {
+    "category": "Community",
+    "ext": "mp4",
     "args": "-c copy -avoid_negative_ts make_zero",
-    "ext": "mp4",
-    "category": "Community",
     "desc": "To use with trim button: Trim using streamcopy avoiding initial negative pts issue to MP4"
-  },
-  "Batch create videos from a single image and audio file to MP4": {
-    "args": "-c:v libx264 -preset veryfast -vf fps=1 -crf 23 -tune stillimage -pix_fmt yuv420p -vf scale=1280:720 -c:a aac -shortest",
-    "ext": "mp4",
-    "category": "Community",
-    "desc": "Batch create videos from a single image and audio file to MP4"
   }
 }

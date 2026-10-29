@@ -1,0 +1,50 @@
+app-id: in.synorastudio.FFmpegBatchGUI
+runtime: org.kde.Platform
+runtime-version: '6.6'
+sdk: org.kde.Sdk
+command: ffmpeg-batch-gui
+
+finish-args:
+  # Display servers
+  - --socket=x11
+  - --socket=wayland
+  - --share=ipc
+  # Hardware Acceleration & GPU probing
+  - --device=dri
+  - --device=all
+  # Audio
+  - --socket=pulseaudio
+  # Filesystem access for batch audio/video conversion
+  - --filesystem=host
+  - --filesystem=home
+  # Prevent system sleep during active encodings
+  - --system-talk-name=org.freedesktop.ScreenSaver
+  - --system-talk-name=org.freedesktop.login1
+
+modules:
+  - name: ffmpeg
+    buildsystem: autotools
+    config-opts:
+      - --enable-gpl
+      - --enable-nonfree
+      - --enable-vaapi
+      - --enable-libx264
+      - --enable-libx265
+      - --enable-libvpx
+      - --enable-libopus
+      - --enable-libmp3lame
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2
+
+  - name: ffmpeg-batch-gui
+    buildsystem: simple
+    build-commands:
+      - install -d /app/share/ffmpeg-batch-gui
+      - cp -r * /app/share/ffmpeg-batch-gui/
+      - install -D assets/app_icon.png /app/share/icons/hicolor/256x256/apps/in.synorastudio.FFmpegBatchGUI.png
+      - install -D packaging/in.synorastudio.FFmpegBatchGUI.desktop /app/share/applications/in.synorastudio.FFmpegBatchGUI.desktop
+      - install -D packaging/ffmpeg-batch-gui.sh /app/bin/ffmpeg-batch-gui
+    sources:
+      - type: dir
+        path: .

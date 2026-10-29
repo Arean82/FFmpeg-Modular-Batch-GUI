@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>VmafDialog</class>
+ <widget class="QDialog" name="VmafDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>640</width>
+    <height>460</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Objective Video Quality Inspector (VMAF / SSIM / PSNR)</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainVmafLayout">
+   <item>
+    <widget class="QGroupBox" name="grpFiles">
+     <property name="title">
+      <string>Comparison Files</string>
+     </property>
+     <layout class="QFormLayout" name="filesForm">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblRef">
+        <property name="text">
+         <string>Reference (Original):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <layout class="QHBoxLayout" name="refRow">
+        <item>
+         <widget class="QLineEdit" name="txtRefFile">
+          <property name="placeholderText">
+           <string>Path to original source video...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnBrowseRef">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblDist">
+        <property name="text">
+         <string>Encoded (Converted):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="distRow">
+        <item>
+         <widget class="QLineEdit" name="txtDistFile">
+          <property name="placeholderText">
+           <string>Path to encoded/compressed video...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnBrowseDist">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblMetric">
+        <property name="text">
+         <string>Measurement Metric:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="comboMetric">
+        <item>
+         <property name="text">
+          <string>SSIM (Structural Similarity Index)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>PSNR (Peak Signal-to-Noise Ratio)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>VMAF (Netflix Video Multi-Method)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="actionLayout">
+     <item>
+      <widget class="QPushButton" name="btnComputeScore">
+       <property name="minimumSize">
+        <size>
+         <width>160</width>
+         <height>35</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>▶ Run Quality Analysis</string>
+       </property>
+       <property name="styleSheet">
+        <string>font-weight: bold;</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblScoreResult">
+       <property name="text">
+        <string>Ready to evaluate.</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="vmafSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QPlainTextEdit" name="txtQualityLog">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="placeholderText">
+      <string>FFmpeg quality assessment logs...</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

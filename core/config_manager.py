@@ -16,7 +16,18 @@ DEFAULT_CONFIG = {
     "ytdlp_custom": False,
     "ytdlp_path": shutil.which("yt-dlp") or "/usr/bin/yt-dlp",
     "exclusions_enabled": True,
-    "exclusions_list": ["txt", "nfo", "srt", "ass", "vtt", "jpg", "png", "ini", "pdf", "url", "part", "zip", "rar", "7z", "torrent", "exe"]
+    "exclusions_list": ["txt", "nfo", "srt", "ass", "vtt", "jpg", "png", "ini", "pdf", "url", "part", "zip", "rar", "7z", "torrent", "exe"],
+    "auto_scroll_logs": True,
+    "play_notification_sound": True,
+    "show_desktop_notification": True,
+    "hw_accel": "Auto (VAAPI / NVENC / QSV)",
+    "process_priority": "Normal",
+    "pause_on_battery": False,
+    "output_naming_pattern": "%~n_converted",
+    "overwrite_mode": "overwrite",
+    "on_finish_action": "none",
+    "run_script_enabled": False,
+    "run_script_path": ""
 }
 
 def get_config() -> dict:

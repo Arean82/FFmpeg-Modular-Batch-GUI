@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Record Desktop Screen (Linux x11grab)</string>
+   <string>Record Desktop Screen (Linux — X11 / PipeWire / Wayland)</string>
   </property>
   <layout class="QVBoxLayout" name="dialogLayout">
    <item>

@@ -1,0 +1,17 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=FFmpeg Modular Batch GUI
+GenericName=Modular Audio/Video Transcoder
+Comment=High-performance modular batch audio/video processing and transcoding workstation
+Exec=python3 /git/FFmpeg-Modular-Batch-GUI/main.py %F
+Icon=video-x-generic
+Terminal=false
+Categories=AudioVideo;AudioVideoEditing;Video;Qt;
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/x-flv;audio/mpeg;audio/x-wav;audio/flac;audio/aac;audio/ogg;
+Keywords=ffmpeg;video;transcode;encode;batch;gui;modular;convert;stream;audio;
+Actions=QueueFiles;
+
+[Desktop Action QueueFiles]
+Name=Enqueue in FFmpeg Batch GUI
+Exec=python3 /git/FFmpeg-Modular-Batch-GUI/main.py %F
