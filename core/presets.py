@@ -3,8 +3,8 @@
 Handles loading, saving, and querying categorized presets directly from presets.json.
 No presets are hardcoded in Python.
 """
-import os
 import json
+import os
 
 PRESET_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "presets.json")
 
@@ -15,7 +15,7 @@ def load_presets() -> dict:
         return {}
 
     try:
-        with open(PRESET_FILE, "r", encoding="utf-8") as f:
+        with open(PRESET_FILE, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"Error loading presets from {PRESET_FILE}: {e}")

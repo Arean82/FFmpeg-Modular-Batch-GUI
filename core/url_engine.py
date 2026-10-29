@@ -1,9 +1,10 @@
 """URL / Stream downloader task using native yt-dlp and FFmpeg."""
-import os
-import re
 import subprocess
-from PySide6.QtCore import QObject, Signal, QRunnable, Slot
+
+from PySide6.QtCore import QObject, QRunnable, Signal, Slot
+
 from core.config_manager import get_binary_path
+
 
 class UrlTaskSignals(QObject):
     started = Signal(str)                  # url
@@ -37,7 +38,7 @@ class UrlStreamTask(QRunnable):
             # Use yt-dlp to extract direct media link
             try:
                 cmd = [ytdlp_bin, "-g", "--no-warnings", self.url]
-                res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=25)
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
                 if res.returncode == 0 and res.stdout.strip():
                     media_url = res.stdout.strip().splitlines()[0]
                 else:
@@ -72,7 +73,7 @@ class UrlStreamTask(QRunnable):
                     self.process.terminate()
                     self.signals.finished.emit(self.url, False, "Cancelled")
                     return
-                
+
                 line = line.strip()
                 if "out_time_ms=" in line:
                     # Generic progress indicator pulse

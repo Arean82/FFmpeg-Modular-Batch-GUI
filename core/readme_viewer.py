@@ -4,10 +4,10 @@ Uses QTextBrowser with native PySide6 markdown rendering (no external dependenci
 """
 
 import os
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QApplication, QTextBrowser
-)
+
 from PySide6.QtCore import QPropertyAnimation
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTextBrowser, QVBoxLayout
+
 
 class ReadmeViewerDialog(QDialog):
     """Renders README.md with clean styling, zoom controls, and fade animation."""
@@ -125,7 +125,7 @@ class ReadmeViewerDialog(QDialog):
             path = os.path.join(base_dir, name)
             if os.path.exists(path):
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         raw_md = f.read()
                     break
                 except Exception:

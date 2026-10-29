@@ -3,8 +3,11 @@ import os
 import re
 import shlex
 import subprocess
-from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
+
+from PySide6.QtCore import QObject, QRunnable, Signal, Slot
+
 from core.config_manager import get_binary_path
+
 
 class WorkerSignals(QObject):
     started = Signal(str)                  # file_path
@@ -135,11 +138,11 @@ class FFmpegTask(QRunnable):
                     self.process.terminate()
                     self.signals.finished.emit(self.file_path, False, "Cancelled")
                     return
-                
+
                 line = line.strip()
                 if not line:
                     continue
-                    
+
                 match = time_pattern.search(line)
                 if match and self.total_duration > 0:
                     out_micro = int(match.group(1))
@@ -166,8 +169,7 @@ class FFmpegTask(QRunnable):
             for fname in os.listdir("."):
                 if fname.startswith("ffmpeg2pass") and fname.endswith(".log"):
                     os.remove(fname)
-        except Exception:
-            pass
+        except Exception as e:
             self.signals.finished.emit(self.file_path, False, str(e))
 
     def cancel(self):

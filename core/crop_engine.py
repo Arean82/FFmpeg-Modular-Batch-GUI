@@ -1,7 +1,9 @@
 """Black bar crop detection engine using FFmpeg cropdetect filter."""
 import re
 import subprocess
+
 from core.config_manager import get_binary_path
+
 
 def detect_black_bars(video_path: str, sample_time_sec: float = 60.0) -> tuple[str, str, str]:
     """

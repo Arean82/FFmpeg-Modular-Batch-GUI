@@ -1,19 +1,27 @@
 """Main application entry point for native Linux FFmpeg Batch AV Converter."""
-import sys
+import json
 import os
+import re
+import sys
 
 # Suppress AT-SPI / dbind accessibility warnings when running under non-root / sudo environments
 os.environ.setdefault("NO_AT_SPI", "1")
 os.environ.setdefault("QT_ACCESSIBILITY", "0")
 
-import subprocess
 import shlex
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog, QTableWidgetItem,
-    QProgressBar, QMessageBox, QMenu, QDialog, QDialogButtonBox
-)
-from PySide6.QtGui import QAction, QKeySequence, QIcon, QShortcut
+import subprocess
+
 from PySide6.QtCore import QFile, QIODevice, Qt, QThreadPool
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialogButtonBox,
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QTableWidgetItem,
+)
 
 try:
     from PySide6.QtUiTools import QUiLoader
@@ -21,19 +29,20 @@ try:
 except ImportError:
     HAS_UILOADER = False
 
-from core.probe import probe_file
-from core.engine import FFmpegTask
-from core.tokens import substitute_tokens
-from core.readme_viewer import ReadmeViewerDialog
-from core.presets import load_presets, save_presets
-from core.estimations import estimate_size_mb
-from core.url_engine import UrlStreamTask
-from core.mux_engine import MuxJobTask
-from core.subs_engine import SubtitleTask
 from core.concat_engine import join_files
+from core.config_manager import get_binary_path, get_config, save_config
 from core.crop_engine import detect_black_bars
-from core.config_manager import get_config, save_config, get_binary_path
+from core.engine import FFmpegTask
+from core.estimations import estimate_size_mb
+from core.mux_engine import MuxJobTask
+from core.presets import load_presets, save_presets
+from core.probe import probe_file
+from core.readme_viewer import ReadmeViewerDialog
+from core.subs_engine import SubtitleTask
 from core.theme_manager import ThemeManager
+from core.tokens import substitute_tokens
+from core.url_engine import UrlStreamTask
+
 
 def load_ui_widget(ui_relative_path: str, parent=None):
     """Loads a .ui file using QUiLoader."""
@@ -72,15 +81,15 @@ class FFBatchApp(QMainWindow):
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        
+
         # Populate formats
         self.ui.comboOutputFormat.addItems(["mp4", "mkv", "avi", "mov", "webm", "mp3", "m4a", "flac", "wav"])
-        
+
         # Default sample watermark path
         default_wm = os.path.join(os.path.dirname(__file__), "assets", "sample_watermark.png")
         if os.path.exists(default_wm):
             self.ui.txtWatermarkFile.setText(default_wm)
-        
+
         # Load presets
         self.presets = load_presets()
         self.refresh_presets_combo()
@@ -102,7 +111,7 @@ class FFBatchApp(QMainWindow):
 
         # 1. File Menu
         file_menu = menubar.addMenu("&File")
-        
+
         # Readme / Help (F1) at the top of File menu (matching Video-Analyse---Rename pattern)
         readme_action = QAction("📄 Readme / &Help", self)
         readme_action.setShortcut(QKeySequence("F1"))
@@ -129,7 +138,7 @@ class FFBatchApp(QMainWindow):
 
         # 2. Queue Menu
         queue_menu = menubar.addMenu("&Queue")
-        
+
         act_start = QAction("&Start Processing", self)
         act_start.setShortcut("Ctrl+R")
         act_start.triggered.connect(self.start_processing)
@@ -170,7 +179,7 @@ class FFBatchApp(QMainWindow):
 
         # 4. Tools Menu
         tools_menu = menubar.addMenu("&Tools")
-        
+
         act_try_preset = QAction("▶ &Try Current Preset (10s)", self)
         act_try_preset.triggered.connect(self.on_try_preset)
         tools_menu.addAction(act_try_preset)
@@ -283,7 +292,7 @@ class FFBatchApp(QMainWindow):
                         color_families[color] = []
                     color_families[color].append((var, t))
 
-                for color, variants in sorted(color_families.items()):
+                for color, _variants in sorted(color_families.items()):
                     disp_name = color.replace('_', ' ').title()
                     action = QAction(f"Material {disp_name}", self)
                     action.setCheckable(True)
@@ -306,6 +315,20 @@ class FFBatchApp(QMainWindow):
         self.toggle_shortcut.activated.connect(self.toggle_theme)
 
         self._update_theme_menu_checks()
+
+        # 6. Help Menu
+        help_menu = menubar.addMenu("&Help")
+
+        act_help_readme = QAction("Documentation (README)", self)
+        act_help_readme.setShortcut(QKeySequence.HelpContents)
+        act_help_readme.triggered.connect(self.open_readme)
+        help_menu.addAction(act_help_readme)
+
+        help_menu.addSeparator()
+
+        act_about = QAction("&About", self)
+        act_about.triggered.connect(self.show_about)
+        help_menu.addAction(act_about)
 
     def _update_theme_menu_checks(self):
         """Update the checkmarks in theme menu for both mode and material selection."""
@@ -337,20 +360,6 @@ class FFBatchApp(QMainWindow):
             self.theme_manager.toggle_theme(QApplication.instance())
             self._update_theme_menu_checks()
 
-        # 6. Help Menu
-        help_menu = menubar.addMenu("&Help")
-        
-        act_help_readme = QAction("Documentation (README)", self)
-        act_help_readme.setShortcut(QKeySequence.HelpContents)
-        act_help_readme.triggered.connect(self.open_readme)
-        help_menu.addAction(act_help_readme)
-
-        help_menu.addSeparator()
-
-        act_about = QAction("&About", self)
-        act_about.triggered.connect(self.show_about)
-        help_menu.addAction(act_about)
-
     def setup_queue_table(self):
         table = self.ui.tableQueue
         table.horizontalHeader().setStretchLastSection(True)
@@ -380,7 +389,7 @@ class FFBatchApp(QMainWindow):
         self.ui.radSourceFolder.toggled.connect(self.on_dest_toggle)
         self.ui.radCustomFolder.toggled.connect(self.on_dest_toggle)
         self.ui.btnBrowseOutputDir.clicked.connect(self.on_browse_output)
-        
+
         # Presets combo
         self.ui.comboPresets.currentIndexChanged.connect(self.on_preset_selected)
         self.ui.btnSavePreset.clicked.connect(self.open_presets_dialog)
@@ -388,7 +397,7 @@ class FFBatchApp(QMainWindow):
         # Watermark UI controls
         self.ui.chkEnableWatermark.toggled.connect(self.on_watermark_toggle)
         self.ui.btnBrowseWatermark.clicked.connect(self.on_browse_watermark)
-        
+
         # URL / Streams (Tab 4) controls
         self.ui.btnAddUrl.clicked.connect(self.on_add_url)
         self.ui.btnImportUrls.clicked.connect(self.on_import_urls)
@@ -439,7 +448,7 @@ class FFBatchApp(QMainWindow):
     def on_import_urls(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Import URLs from File", "", "Text Files (*.txt *.m3u *.m3u8);;All Files (*)")
         if file_path:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 for line in f:
                     u = line.strip()
                     if u and (u.startswith("http://") or u.startswith("https://") or u.startswith("rtsp://")):
@@ -452,7 +461,7 @@ class FFBatchApp(QMainWindow):
 
         table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
         table.setItem(row, 1, QTableWidgetItem(url))
-        
+
         # Derive output filename
         clean_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', url.split('?')[0].split('/')[-1]) or f"stream_{row+1}"
         if not clean_name.endswith(".mp4"):
@@ -605,7 +614,7 @@ class FFBatchApp(QMainWindow):
         self.ui.btnStartMux.setEnabled(False)
         self.ui.txtLog.appendPlainText(">>> Starting Multiplex Jobs...")
 
-        for idx, job in enumerate(self.mux_jobs):
+        for _idx, job in enumerate(self.mux_jobs):
             task = MuxJobTask(
                 job["base_video"],
                 job["audio_track"],
@@ -665,7 +674,7 @@ class FFBatchApp(QMainWindow):
                     video_map[base] = full
                 elif ext_clean in ["srt", "ass", "vtt"]:
                     sub_map[base] = full
-            
+
             for base, vid_path in video_map.items():
                 if base in sub_map:
                     self.add_sub_job_to_table(vid_path, sub_map[base])
@@ -716,7 +725,7 @@ class FFBatchApp(QMainWindow):
         dest_dir = self.ui.txtOutputDir.text().strip()
         custom_dest = self.ui.radCustomFolder.isChecked()
 
-        for idx, job in enumerate(self.sub_jobs):
+        for _idx, job in enumerate(self.sub_jobs):
             src_path = job["video_path"]
             src_dir, src_file = os.path.split(src_path)
             base_name, ext = os.path.splitext(src_file)
@@ -847,14 +856,14 @@ class FFBatchApp(QMainWindow):
 
         table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
         table.setItem(row, 1, QTableWidgetItem(os.path.basename(path)))
-        
+
         dur = meta.get("duration", 0)
         dur_str = f"{int(dur // 60):02d}:{int(dur % 60):02d}"
         table.setItem(row, 2, QTableWidgetItem(dur_str))
-        
+
         table.setItem(row, 3, QTableWidgetItem(meta.get("video_codec", "")))
         table.setItem(row, 4, QTableWidgetItem(meta.get("audio_codec", "")))
-        
+
         size_mb = meta.get("size", 0) / (1024 * 1024)
         table.setItem(row, 5, QTableWidgetItem(f"{size_mb:.2f} MB"))
 
@@ -863,12 +872,12 @@ class FFBatchApp(QMainWindow):
         est = estimate_size_mb(dur, args)
         est_text = f"~{est:.1f} MB" if est else "-"
         table.setItem(row, 6, QTableWidgetItem(est_text))
-        
+
         prog = QProgressBar()
         prog.setValue(0)
         prog.setTextVisible(True)
         table.setCellWidget(row, 7, prog)
-        
+
         table.setItem(row, 8, QTableWidgetItem("Pending"))
         self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
 
@@ -925,14 +934,14 @@ class FFBatchApp(QMainWindow):
 
         params = self.ui.txtParameters.text().strip()
         cmd = f"ffmpeg -y -i '{src_path}' -t 10 {params} '{test_out}'"
-        
+
         self.ui.txtLog.appendPlainText(f">>> Running 10-second test encode:\n{cmd}")
         res = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.ui.txtLog.appendPlainText(res.stdout)
         if res.returncode == 0:
             QMessageBox.information(self, "Test Successful", f"Test preview generated successfully:\n{test_out}")
         else:
-            QMessageBox.critical(self, "Test Failed", f"FFmpeg returned an error. Check log console.")
+            QMessageBox.critical(self, "Test Failed", "FFmpeg returned an error. Check log console.")
 
     def on_show_console_cmd(self):
         """Shows exact command line for the first item."""
@@ -1068,7 +1077,7 @@ class FFBatchApp(QMainWindow):
 
     def open_presets_dialog(self):
         dialog = load_ui_widget("ui/presets_dialog.ui", self)
-        
+
         def refresh_dialog_list():
             dialog.listPresets.clear()
             for name, data in self.presets.items():
@@ -1145,16 +1154,15 @@ class FFBatchApp(QMainWindow):
         table.setRowCount(0)
 
         # Populate with presets
-        row = 0
         preset_keys = list(self.presets.keys())
         table.setRowCount(len(preset_keys))
 
-        from PySide6.QtWidgets import QCheckBox, QWidget, QHBoxLayout
+        from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QWidget
 
         checkboxes = {}
         for r, name in enumerate(preset_keys):
             data = self.presets[name]
-            
+
             # Centered checkbox widget
             chk = QCheckBox()
             chk_widget = QWidget()
@@ -1191,7 +1199,7 @@ class FFBatchApp(QMainWindow):
             dialog.accept()
 
             # Schedule jobs for every file x every selected preset
-            for chk, name, pdata in selected:
+            for _chk, name, pdata in selected:
                 p_args = pdata.get("args", "")
                 p_ext = pdata.get("ext", "mp4")
                 p_folder_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
@@ -1283,7 +1291,7 @@ class FFBatchApp(QMainWindow):
 
     def open_join_dialog(self):
         dialog = load_ui_widget("ui/join_dialog.ui", self)
-        
+
         # Populate with items from queue
         for item in self.queue_items:
             dialog.listJoinFiles.addItem(item["path"])
@@ -1353,7 +1361,7 @@ class FFBatchApp(QMainWindow):
 
     def open_crop_dialog(self):
         dialog = load_ui_widget("ui/crop_dialog.ui", self)
-        
+
         if not self.queue_items:
             dialog.lblFileNameVal.setText("No file selected in queue.")
             dialog.btnRunDetection.setEnabled(False)
@@ -1364,7 +1372,7 @@ class FFBatchApp(QMainWindow):
             def run_crop():
                 dialog.btnRunDetection.setEnabled(False)
                 dialog.txtCropLog.setPlainText("Running cropdetect on 60 frames...")
-                
+
                 crop_arg, ratio_desc, log = detect_black_bars(target_path)
                 dialog.txtCropLog.setPlainText(log)
                 if crop_arg:
@@ -1390,7 +1398,7 @@ class FFBatchApp(QMainWindow):
 
     def open_watermark_dialog(self):
         dialog = load_ui_widget("ui/watermark_dialog.ui", self)
-        
+
         def browse_img():
             path, _ = QFileDialog.getOpenFileName(dialog, "Select Logo/Watermark Image", "", "Images (*.png *.jpg *.jpeg *.svg)")
             if path:
@@ -1454,7 +1462,7 @@ class FFBatchApp(QMainWindow):
                     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     start_pattern = re.compile(r"silence_start:\s+([\d\.]+)")
                     end_pattern = re.compile(r"silence_end:\s+([\d\.]+)\s+\|\s+silence_duration:\s+([\d\.]+)")
-                    
+
                     current_start = None
                     silences = []
 
@@ -1498,7 +1506,7 @@ class FFBatchApp(QMainWindow):
 
     def open_trailer_dialog(self):
         dialog = load_ui_widget("ui/trailer_dialog.ui", self)
-        
+
         if not self.queue_items:
             dialog.lblSourceFileName.setText("No file selected in queue.")
             dialog.btnStartTrailer.setEnabled(False)
@@ -1507,7 +1515,7 @@ class FFBatchApp(QMainWindow):
             src_path = item["path"]
             duration = item["meta"].get("duration", 0)
             dialog.lblSourceFileName.setText(os.path.basename(src_path))
-            
+
             src_dir, src_file = os.path.split(src_path)
             base, _ = os.path.splitext(src_file)
             default_out = os.path.join(src_dir, f"{base}_trailer.mp4")
@@ -1655,7 +1663,7 @@ class FFBatchApp(QMainWindow):
                 cmd.append(out_path)
             else:
                 # Sequence folder: e.g. %04d.jpg or *.jpg
-                pattern = os.path.join(img_path, "%*.jpg")
+                os.path.join(img_path, "%*.jpg")
                 cmd = [
                     ffmpeg_bin, "-y",
                     "-framerate", str(fps),
@@ -1708,7 +1716,7 @@ class FFBatchApp(QMainWindow):
         ]
 
         try:
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            res = subprocess.run(cmd, capture_output=True, text=True)
             data = json.loads(res.stdout) if res.stdout else {}
             dialog.txtRawJson.setPlainText(json.dumps(data, indent=2))
 
@@ -1843,7 +1851,7 @@ class FFBatchApp(QMainWindow):
 
         max_threads = self.ui.spinThreads.value()
         self.threadpool.setMaxThreadCount(max_threads)
-        
+
         params_template = self.ui.txtParameters.text().strip()
         out_ext = self.ui.comboOutputFormat.currentText().strip().lstrip(".")
         if not out_ext:
@@ -1886,7 +1894,7 @@ class FFBatchApp(QMainWindow):
 
         self.active_tasks.clear()
 
-        for idx, item in enumerate(self.queue_items):
+        for _idx, item in enumerate(self.queue_items):
             src_path = item["path"]
             src_dir, src_file = os.path.split(src_path)
             base_name, _ = os.path.splitext(src_file)
@@ -1907,7 +1915,7 @@ class FFBatchApp(QMainWindow):
             task.signals.progress.connect(self.on_task_progress)
             task.signals.log.connect(self.on_task_log)
             task.signals.finished.connect(self.on_task_finished)
-            
+
             self.active_tasks.append(task)
             self.threadpool.start(task)
 
@@ -1921,7 +1929,7 @@ class FFBatchApp(QMainWindow):
                 status_item = self.ui.tableQueue.item(idx, 8)
                 if status_item:
                     status_item.setText(f"Encoding ({int(percent)}%)")
-            
+
             # Tally aggregate progress
             bar = self.ui.tableQueue.cellWidget(idx, 7)
             if bar:

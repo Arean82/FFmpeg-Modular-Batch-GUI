@@ -6,9 +6,10 @@ Replicates the complete theme architecture from Video-Analyse---Rename:
 - Built-in generic QSS themes (dark.qss / light.qss)
 - Configuration persistence via config_manager
 """
-import os
 from pathlib import Path
+
 from PySide6.QtWidgets import QApplication
+
 from core.config_manager import get_config, save_config
 
 
@@ -69,7 +70,7 @@ class ThemeManager:
         if not app:
             return
 
-        mode = self.get_theme_mode()
+        self.get_theme_mode()
         material = self.get_material_theme()
         effective_brightness = self.get_effective_brightness(app)
 
@@ -78,13 +79,13 @@ class ThemeManager:
             app.setStyleSheet("")
             qss_file = self.themes_dir / f"{effective_brightness}.qss"
             if qss_file.exists():
-                with open(qss_file, "r", encoding="utf-8") as f:
+                with open(qss_file, encoding="utf-8") as f:
                     app.setStyleSheet(f.read())
         else:
             # Material Theme selected: resolve dark/light variant matching current mode
             available = self.get_all_material_themes()
             color_name = material.replace(".xml", "").replace("dark_", "").replace("light_", "")
-            
+
             # Primary choice: matching current brightness (e.g., 'dark_blue.xml' or 'light_blue.xml')
             target_xml = f"{effective_brightness}_{color_name}.xml"
             if target_xml not in available:
@@ -95,7 +96,7 @@ class ThemeManager:
                     target_xml = material
                 elif available:
                     target_xml = available[0]
-            
+
             try:
                 from qt_material import apply_stylesheet
                 app.setStyleSheet("")
@@ -104,7 +105,7 @@ class ThemeManager:
                 # Fallback to generic theme if qt_material fails
                 qss_file = self.themes_dir / f"{effective_brightness}.qss"
                 if qss_file.exists():
-                    with open(qss_file, "r", encoding="utf-8") as f:
+                    with open(qss_file, encoding="utf-8") as f:
                         app.setStyleSheet(f.read())
 
     def set_theme_mode(self, app, mode: str):

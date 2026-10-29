@@ -2,8 +2,8 @@
 
 Stores binary paths (system vs custom bleeding-edge) and general preferences.
 """
-import os
 import json
+import os
 import shutil
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
@@ -23,7 +23,7 @@ def get_config() -> dict:
     config = dict(DEFAULT_CONFIG)
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(CONFIG_FILE, encoding="utf-8") as f:
                 saved = json.load(f)
                 config.update(saved)
         except Exception:

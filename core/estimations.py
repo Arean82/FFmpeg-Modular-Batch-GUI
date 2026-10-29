@@ -1,9 +1,10 @@
 """Output file size estimation based on media duration and FFmpeg arguments."""
 import re
 
+
 def estimate_size_mb(duration_sec: float, args: str) -> float | None:
     """Estimates output file size in MB from duration and bitrate flags in args.
-    
+
     Checks for video bitrate (-b:v) and audio bitrate (-b:a).
     """
     if not duration_sec or duration_sec <= 0:

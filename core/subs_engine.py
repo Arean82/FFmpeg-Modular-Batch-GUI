@@ -1,8 +1,10 @@
 """Subtitle burning and embedding engine."""
-import os
 import subprocess
-from PySide6.QtCore import QObject, Signal, QRunnable, Slot
+
+from PySide6.QtCore import QObject, QRunnable, Signal, Slot
+
 from core.config_manager import get_binary_path
+
 
 class SubTaskSignals(QObject):
     started = Signal(str)                  # video_path
@@ -63,7 +65,7 @@ class SubtitleTask(QRunnable):
                 universal_newlines=True
             )
 
-            for line in self.process.stdout:
+            for _line in self.process.stdout:
                 if self.is_cancelled:
                     self.process.terminate()
                     self.signals.finished.emit(self.video_path, False, "Cancelled")
