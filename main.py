@@ -1,6 +1,11 @@
 """Main application entry point for native Linux FFmpeg Batch AV Converter."""
 import sys
 import os
+
+# Suppress AT-SPI / dbind accessibility warnings when running under non-root / sudo environments
+os.environ.setdefault("NO_AT_SPI", "1")
+os.environ.setdefault("QT_ACCESSIBILITY", "0")
+
 import subprocess
 import shlex
 from PySide6.QtWidgets import (

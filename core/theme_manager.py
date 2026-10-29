@@ -17,9 +17,9 @@ class ThemeManager:
         self.themes_dir = Path(__file__).parent.parent / "assets" / "themes"
 
     def get_theme_mode(self) -> str:
-        """Returns 'light', 'dark', or 'system' (default: 'dark')."""
+        """Returns 'light', 'dark', or 'system' (default: 'light')."""
         cfg = get_config()
-        return cfg.get("theme_mode", "dark")
+        return cfg.get("theme_mode", "light")
 
     def save_theme_mode(self, mode: str):
         """Saves theme mode: 'light', 'dark', or 'system'."""
