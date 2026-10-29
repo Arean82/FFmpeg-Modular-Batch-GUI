@@ -1,7 +1,8 @@
-"""Concatenation engine supporting stream-copy concat demuxer and re-encode concat filter."""
+"""Concatenation engine supporting stream-copy concat demuxer, re-encode concat filter, and batch intro/outro stitching."""
 import os
 import subprocess
 import tempfile
+from typing import Callable, Optional
 
 from core.config_manager import get_binary_path
 
@@ -68,3 +69,28 @@ def join_files(files: list, output_path: str, stream_copy: bool = True) -> tuple
                 return False, f"Re-encode join failed:\n{res.stdout[-400:]}"
         except Exception as e:
             return False, str(e)
+
+
+def stitch_file_with_intro_outro(
+    src_file: str,
+    intro_file: Optional[str],
+    outro_file: Optional[str],
+    output_path: str,
+    stream_copy: bool = True
+) -> tuple[bool, str]:
+    """Stitches [intro] + src_file + [outro] for a single file in batch mode."""
+    chain = []
+    if intro_file and os.path.isfile(intro_file):
+        chain.append(intro_file)
+    chain.append(src_file)
+    if outro_file and os.path.isfile(outro_file):
+        chain.append(outro_file)
+
+    if len(chain) == 1:
+        return False, "Neither intro nor outro file was provided."
+
+    success, msg = join_files(chain, output_path, stream_copy=stream_copy)
+    if not success and stream_copy:
+        # Automatic fallback to re-encode if stream copy fails due to codec/rate mismatches
+        return join_files(chain, output_path, stream_copy=False)
+    return success, msg

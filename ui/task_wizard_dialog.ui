@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TaskWizardDialog</class>
+ <widget class="QDialog" name="TaskWizardDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>680</width>
+    <height>460</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>FFmpeg Batch Task Wizard</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainWizardLayout">
+   <item>
+    <widget class="QStackedWidget" name="stackedPages">
+     <!-- Page 1: Task Selection -->
+     <widget class="QWidget" name="pageTask">
+      <layout class="QVBoxLayout" name="page1Layout">
+       <item>
+        <widget class="QLabel" name="lblWelcomeTitle">
+         <property name="font">
+          <font>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Welcome to FFmpeg Batch Task Wizard</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblWelcomeDesc">
+         <property name="text">
+          <string>Select the primary media conversion or processing operation you wish to perform:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpTasks">
+         <property name="title">
+          <string>Task Templates</string>
+         </property>
+         <layout class="QVBoxLayout" name="taskRadioLayout">
+          <item>
+           <widget class="QRadioButton" name="radStandardVideo">
+            <property name="text">
+             <string>Standard High-Compatibility Video (H.264 / AAC MP4)</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radHighEfficiency">
+            <property name="text">
+             <string>High Efficiency Video Coding (HEVC / H.265 MKV)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radAudioExtraction">
+            <property name="text">
+             <string>Extract Audio Tracks (High Quality MP3 / AAC / FLAC)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radWebmStreaming">
+            <property name="text">
+             <string>Web Streaming Optimized Video (VP9 / Opus WEBM)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radSilenceRemoval">
+            <property name="text">
+             <string>Automated Silence Detection &amp; Removal</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <!-- Page 2: Codec & Quality Tuning -->
+     <widget class="QWidget" name="pageTuning">
+      <layout class="QVBoxLayout" name="page2Layout">
+       <item>
+        <widget class="QLabel" name="lblTuningTitle">
+         <property name="font">
+          <font>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Step 2: Quality &amp; Speed Settings</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpQuality">
+         <property name="title">
+          <string>Encoding Quality &amp; Compression Balance</string>
+         </property>
+         <layout class="QFormLayout" name="qualityFormLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="lblPresetSpeed">
+            <property name="text">
+             <string>Encoder Preset Speed:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="comboWizardPreset">
+            <item><property name="text"><string>ultrafast</string></property></item>
+            <item><property name="text"><string>superfast</string></property></item>
+            <item><property name="text"><string>veryfast</string></property></item>
+            <item><property name="text"><string>faster</string></property></item>
+            <item><property name="text"><string>fast</string></property></item>
+            <item><property name="text"><string>medium (Default)</string></property></item>
+            <item><property name="text"><string>slow</string></property></item>
+            <item><property name="text"><string>slower</string></property></item>
+            <item><property name="text"><string>veryslow</string></property></item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="lblCrfQuality">
+            <property name="text">
+             <string>Video Quality (CRF):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="crfLayout">
+            <item>
+             <widget class="QSlider" name="sliderCrf">
+              <property name="minimum">
+               <number>15</number>
+              </property>
+              <property name="maximum">
+               <number>35</number>
+              </property>
+              <property name="value">
+               <number>23</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblCrfValue">
+              <property name="text">
+               <string>23 (Balanced)</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblAudioBitrate">
+            <property name="text">
+             <string>Audio Bitrate:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="comboAudioBitrate">
+            <item><property name="text"><string>128k</string></property></item>
+            <item><property name="text"><string>160k</string></property></item>
+            <item><property name="text"><string>192k (Recommended)</string></property></item>
+            <item><property name="text"><string>256k</string></property></item>
+            <item><property name="text"><string>320k</string></property></item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <!-- Page 3: Summary & Execution -->
+     <widget class="QWidget" name="pageSummary">
+      <layout class="QVBoxLayout" name="page3Layout">
+       <item>
+        <widget class="QLabel" name="lblSummaryTitle">
+         <property name="font">
+          <font>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Step 3: Configuration Summary</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblSummaryNotice">
+         <property name="text">
+          <string>The wizard has generated the following optimized parameters based on your choices:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpFinalParams">
+         <property name="title">
+          <string>Generated FFmpeg Arguments</string>
+         </property>
+         <layout class="QVBoxLayout" name="finalParamsLayout">
+          <item>
+           <widget class="QLineEdit" name="txtWizardFinalArgs">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="chkWizardAutoStart">
+         <property name="text">
+          <string>Start queue processing immediately after closing wizard</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="wizardNavLayout">
+     <item>
+      <widget class="QPushButton" name="btnWizardBack">
+       <property name="text">
+        <string>&lt; Back</string>
+       </property>
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnWizardNext">
+       <property name="text">
+        <string>Next &gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="hSpacerNav">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnWizardCancel">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnWizardFinish">
+       <property name="text">
+        <string>Finish &amp; Apply</string>
+       </property>
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

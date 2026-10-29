@@ -1,5 +1,6 @@
 """Subtitle burning and embedding engine."""
 import subprocess
+import os
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
@@ -13,15 +14,18 @@ class SubTaskSignals(QObject):
 
 class SubtitleTask(QRunnable):
     def __init__(self, video_path: str, sub_path: str, mode: str, font_name: str,
-                 font_size: int, lang: str, out_path: str):
+                 font_size: int, lang: str, out_path: str,
+                 font_color_hex: str = "&H00FFFFFF", use_embedded: bool = False):
         super().__init__()
         self.video_path = video_path
         self.sub_path = sub_path
         self.mode = mode.lower()  # "burn" or "embed"
-        self.font_name = font_name
-        self.font_size = font_size
-        self.lang = lang
+        self.font_name = font_name or "Sans"
+        self.font_size = font_size or 24
+        self.lang = lang or "eng"
         self.out_path = out_path
+        self.font_color_hex = font_color_hex or "&H00FFFFFF"
+        self.use_embedded = use_embedded
         self.signals = SubTaskSignals()
         self.is_cancelled = False
         self.process = None
@@ -33,8 +37,18 @@ class SubtitleTask(QRunnable):
 
         if "burn" in self.mode:
             # Hardcode subtitle into video frame
-            escaped_sub = self.sub_path.replace(":", "\\:").replace("'", "\\'")
-            sub_filter = f"subtitles='{escaped_sub}':force_style='FontName={self.font_name},FontSize={self.font_size}'"
+            if self.use_embedded or not self.sub_path:
+                escaped_vid = self.video_path.replace(":", "\\:").replace("'", "\\'")
+                sub_filter = (
+                    f"subtitles='{escaped_vid}':force_style="
+                    f"'FontName={self.font_name},FontSize={self.font_size},PrimaryColour={self.font_color_hex}'"
+                )
+            else:
+                escaped_sub = self.sub_path.replace(":", "\\:").replace("'", "\\'")
+                sub_filter = (
+                    f"subtitles='{escaped_sub}':force_style="
+                    f"'FontName={self.font_name},FontSize={self.font_size},PrimaryColour={self.font_color_hex}'"
+                )
             cmd = [
                 ffmpeg_bin, "-y",
                 "-i", self.video_path,
@@ -44,15 +58,24 @@ class SubtitleTask(QRunnable):
             ]
         else:
             # Soft-embed into container
-            cmd = [
-                ffmpeg_bin, "-y",
-                "-i", self.video_path,
-                "-i", self.sub_path,
-                "-map", "0:v", "-map", "0:a?", "-map", "1:s",
-                "-c", "copy",
-                "-metadata:s:s:0", f"language={self.lang}",
-                self.out_path
-            ]
+            if self.use_embedded or not self.sub_path:
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-i", self.video_path,
+                    "-map", "0",
+                    "-c", "copy",
+                    self.out_path
+                ]
+            else:
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-i", self.video_path,
+                    "-i", self.sub_path,
+                    "-map", "0:v", "-map", "0:a?", "-map", "1:s",
+                    "-c", "copy",
+                    "-metadata:s:s:0", f"language={self.lang}",
+                    self.out_path
+                ]
 
         self.signals.log.emit(f">>> Processing Subtitles: {' '.join(cmd)}")
 

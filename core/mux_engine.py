@@ -1,5 +1,6 @@
 """Multi-track audio, video, and subtitle multiplexing engine."""
 import subprocess
+import shlex
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
@@ -13,7 +14,9 @@ class MuxTaskSignals(QObject):
 
 class MuxJobTask(QRunnable):
     def __init__(self, base_video: str, audio_track: str, audio_lang: str,
-                 sub_track: str, sub_lang: str, out_path: str, stream_copy: bool = True):
+                 sub_track: str, sub_lang: str, out_path: str,
+                 stream_copy: bool = True, default_audio: bool = True,
+                 default_sub: bool = False, custom_params: str = ""):
         super().__init__()
         self.base_video = base_video
         self.audio_track = audio_track
@@ -22,6 +25,9 @@ class MuxJobTask(QRunnable):
         self.sub_lang = sub_lang
         self.out_path = out_path
         self.stream_copy = stream_copy
+        self.default_audio = default_audio
+        self.default_sub = default_sub
+        self.custom_params = custom_params.strip() if custom_params else ""
         self.signals = MuxTaskSignals()
         self.is_cancelled = False
         self.process = None
@@ -64,11 +70,21 @@ class MuxJobTask(QRunnable):
         if self.stream_copy:
             cmd.extend(["-c", "copy"])
 
+        # Default track dispositions
+        if self.default_audio:
+            cmd.extend(["-disposition:a:0", "default"])
+        if self.default_sub and (sub_input_idx is not None):
+            cmd.extend(["-disposition:s:0", "default"])
+
         # Metadata language tagging
-        if self.audio_lang:
+        if self.audio_lang and self.audio_lang != "None":
             cmd.extend(["-metadata:s:a:0", f"language={self.audio_lang}"])
-        if self.sub_lang and (sub_input_idx is not None):
+        if self.sub_lang and self.sub_lang != "None" and (sub_input_idx is not None):
             cmd.extend(["-metadata:s:s:0", f"language={self.sub_lang}"])
+
+        # Injected custom per-job params
+        if self.custom_params:
+            cmd.extend(shlex.split(self.custom_params))
 
         cmd.append(self.out_path)
         self.signals.log.emit(f">>> Running Mux: {' '.join(cmd)}")

@@ -2,7 +2,9 @@
 import os
 import re
 import shlex
+import signal
 import subprocess
+import time
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
@@ -16,30 +18,83 @@ class WorkerSignals(QObject):
     finished = Signal(str, bool, str)      # file_path, success, error_msg
 
 class FFmpegTask(QRunnable):
-    def __init__(self, file_path: str, output_path: str, params: str, total_duration: float, two_pass: bool = False):
+    def __init__(
+        self,
+        file_path: str,
+        output_path: str,
+        params: str,
+        total_duration: float,
+        two_pass: bool = False,
+        pre_input: str = "",
+        overwrite: bool = True,
+        cpu_priority: str = "Normal"
+    ):
         super().__init__()
         self.file_path = file_path
         self.output_path = output_path
         self.params = params
         self.total_duration = total_duration
         self.two_pass = two_pass
+        self.pre_input = pre_input.strip() if pre_input else ""
+        self.overwrite = overwrite
+        self.cpu_priority = cpu_priority
         self.signals = WorkerSignals()
         self.is_cancelled = False
+        self.is_paused = False
         self.process = None
+
+    def _apply_priority(self):
+        """Sets Linux nice level on the subprocess if possible."""
+        if not self.process:
+            return
+        try:
+            nice_levels = {
+                "High": -5,
+                "Normal": 0,
+                "Below Normal": 5,
+                "Idle (Low)": 15
+            }
+            target_nice = nice_levels.get(self.cpu_priority, 0)
+            if target_nice != 0:
+                os.setpriority(os.PRIO_PROCESS, self.process.pid, target_nice)
+        except Exception:
+            pass
+
+    def pause(self):
+        """Pause worker process with SIGSTOP."""
+        self.is_paused = True
+        if self.process and self.process.poll() is None:
+            try:
+                os.kill(self.process.pid, signal.SIGSTOP)
+            except Exception:
+                pass
+
+    def resume(self):
+        """Resume worker process with SIGCONT."""
+        self.is_paused = False
+        if self.process and self.process.poll() is None:
+            try:
+                os.kill(self.process.pid, signal.SIGCONT)
+            except Exception:
+                pass
 
     @Slot()
     def run(self):
         self.signals.started.emit(self.file_path)
         ffmpeg_bin = get_binary_path("ffmpeg")
         parsed_params = shlex.split(self.params) if self.params else []
+        parsed_pre = shlex.split(self.pre_input) if self.pre_input else []
+        overwrite_flag = "-y" if self.overwrite else "-n"
         time_pattern = re.compile(r"out_time_ms=(\d+)")
 
         try:
             # Check if two-pass is active
             if self.two_pass:
-                # Pass 1: analyze and generate passlogfile
                 self.signals.log.emit("[Two-Pass] Starting Pass 1 analysis...")
-                pass1_cmd = [ffmpeg_bin, "-y", "-i", self.file_path]
+                pass1_cmd = [ffmpeg_bin, overwrite_flag]
+                if parsed_pre:
+                    pass1_cmd.extend(parsed_pre)
+                pass1_cmd.extend(["-i", self.file_path])
                 pass1_cmd.extend(parsed_params)
                 pass1_cmd.extend(["-pass", "1", "-an", "-f", "null", "-progress", "pipe:1", "/dev/null"])
 
@@ -51,8 +106,11 @@ class FFmpegTask(QRunnable):
                     bufsize=1,
                     universal_newlines=True
                 )
+                self._apply_priority()
 
                 for line in self.process.stdout:
+                    while self.is_paused and not self.is_cancelled:
+                        time.sleep(0.2)
                     if self.is_cancelled:
                         self.process.terminate()
                         self.signals.finished.emit(self.file_path, False, "Cancelled")
@@ -64,7 +122,6 @@ class FFmpegTask(QRunnable):
                     m = time_pattern.search(line)
                     if m and self.total_duration > 0:
                         out_sec = int(m.group(1)) / 1000000.0
-                        # Pass 1 represents 0% to 50%
                         percent = min(50.0, (out_sec / self.total_duration) * 50.0)
                         self.signals.progress.emit(self.file_path, percent)
                     elif not line.startswith("out_time") and not line.startswith("frame="):
@@ -78,7 +135,10 @@ class FFmpegTask(QRunnable):
 
                 # Pass 2: encode to output
                 self.signals.log.emit("[Two-Pass] Pass 1 complete. Starting Pass 2 encoding...")
-                pass2_cmd = [ffmpeg_bin, "-y", "-i", self.file_path]
+                pass2_cmd = [ffmpeg_bin, overwrite_flag]
+                if parsed_pre:
+                    pass2_cmd.extend(parsed_pre)
+                pass2_cmd.extend(["-i", self.file_path])
                 pass2_cmd.extend(parsed_params)
                 pass2_cmd.extend(["-pass", "2", "-progress", "pipe:1", self.output_path])
 
@@ -90,8 +150,11 @@ class FFmpegTask(QRunnable):
                     bufsize=1,
                     universal_newlines=True
                 )
+                self._apply_priority()
 
                 for line in self.process.stdout:
+                    while self.is_paused and not self.is_cancelled:
+                        time.sleep(0.2)
                     if self.is_cancelled:
                         self.process.terminate()
                         self.signals.finished.emit(self.file_path, False, "Cancelled")
@@ -103,7 +166,6 @@ class FFmpegTask(QRunnable):
                     m = time_pattern.search(line)
                     if m and self.total_duration > 0:
                         out_sec = int(m.group(1)) / 1000000.0
-                        # Pass 2 represents 50% to 100%
                         percent = min(100.0, 50.0 + ((out_sec / self.total_duration) * 50.0))
                         self.signals.progress.emit(self.file_path, percent)
                     elif "progress=end" in line:
@@ -120,7 +182,10 @@ class FFmpegTask(QRunnable):
                 return
 
             # Single pass mode
-            cmd = [ffmpeg_bin, "-y", "-i", self.file_path]
+            cmd = [ffmpeg_bin, overwrite_flag]
+            if parsed_pre:
+                cmd.extend(parsed_pre)
+            cmd.extend(["-i", self.file_path])
             cmd.extend(parsed_params)
             cmd.extend(["-progress", "pipe:1", self.output_path])
 
@@ -132,8 +197,11 @@ class FFmpegTask(QRunnable):
                 bufsize=1,
                 universal_newlines=True
             )
+            self._apply_priority()
 
             for line in self.process.stdout:
+                while self.is_paused and not self.is_cancelled:
+                    time.sleep(0.2)
                 if self.is_cancelled:
                     self.process.terminate()
                     self.signals.finished.emit(self.file_path, False, "Cancelled")
@@ -169,11 +237,12 @@ class FFmpegTask(QRunnable):
             for fname in os.listdir("."):
                 if fname.startswith("ffmpeg2pass") and fname.endswith(".log"):
                     os.remove(fname)
-        except Exception as e:
-            self.signals.finished.emit(self.file_path, False, str(e))
+        except Exception:
+            pass
 
     def cancel(self):
         self.is_cancelled = True
+        self.is_paused = False
         if self.process:
             try:
                 self.process.terminate()

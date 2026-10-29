@@ -114,6 +114,56 @@
                </widget>
               </item>
               <item>
+               <widget class="QPushButton" name="btnMoveUp">
+                <property name="text">
+                 <string>▲ Up</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move selected item up in queue</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnMoveDown">
+                <property name="text">
+                 <string>▼ Down</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move selected item down in queue</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnRequeue">
+                <property name="text">
+                 <string>↺ Requeue</string>
+                </property>
+                <property name="toolTip">
+                 <string>Reset selected or failed items to Pending</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnIncreaseFont">
+                <property name="text">
+                 <string>A+</string>
+                </property>
+                <property name="toolTip">
+                 <string>Increase queue table font size</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnDecreaseFont">
+                <property name="text">
+                 <string>A-</string>
+                </property>
+                <property name="toolTip">
+                 <string>Decrease queue table font size</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <widget class="QLineEdit" name="txtFilterQueue">
                 <property name="maximumSize">
                  <size>
@@ -126,6 +176,26 @@
                 </property>
                 <property name="clearButtonEnabled">
                  <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnAdvancedFilter">
+                <property name="toolTip">
+                 <string>Advanced Queue Filtering &amp; Batch Cleanup</string>
+                </property>
+                <property name="text">
+                 <string>Filter...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnConfigureColumns">
+                <property name="toolTip">
+                 <string>Configure Queue Table Columns</string>
+                </property>
+                <property name="text">
+                 <string>Columns...</string>
                 </property>
                </widget>
               </item>
@@ -268,6 +338,46 @@
                </widget>
               </item>
               <item>
+               <widget class="QPushButton" name="btnAudioWaveform">
+                <property name="text">
+                 <string>〰 Waveform...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Visualize audio waveform of selected video or audio track</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnScreenCapture">
+                <property name="text">
+                 <string>⏺ Record Screen...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Record desktop screen on Linux using x11grab</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnMultiPresetsBatch">
+                <property name="text">
+                 <string>⚡ Multiple Presets...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Run batch conversion with multiple presets sequentially</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnOpenOutputDirQuick">
+                <property name="text">
+                 <string>📁 Output Folder</string>
+                </property>
+                <property name="toolTip">
+                 <string>Open active destination folder in file manager</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <spacer name="quickToolsSpacer">
                 <property name="orientation">
                  <enum>Qt::Horizontal</enum>
@@ -362,6 +472,19 @@
                   <widget class="QCheckBox" name="chkTwoPass">
                    <property name="text">
                     <string>Two-Pass Encoding</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="chkOverwrite">
+                   <property name="text">
+                    <string>Overwrite Existing (-y)</string>
+                   </property>
+                   <property name="checked">
+                    <bool>true</bool>
+                   </property>
+                   <property name="toolTip">
+                    <string>Overwrite destination output file if it already exists</string>
                    </property>
                   </widget>
                  </item>
@@ -624,6 +747,44 @@
                </widget>
               </item>
               <item>
+               <widget class="QPushButton" name="btnSkipCurrent">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>90</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Skip File</string>
+                </property>
+                <property name="toolTip">
+                 <string>Skip currently active encoding file and proceed to next in queue</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnAbortAll">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>90</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Abort All</string>
+                </property>
+                <property name="toolTip">
+                 <string>Immediately terminate all active FFmpeg encoding processes</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <spacer name="ctrlSpacer">
                 <property name="orientation">
                  <enum>Qt::Horizontal</enum>
@@ -653,6 +814,84 @@
                 </property>
                 <property name="value">
                  <number>2</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblCpuPrio">
+                <property name="text">
+                 <string>CPU Priority:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="comboCpuPriority">
+                <item>
+                 <property name="text">
+                  <string>Normal</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Below Normal</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Idle (Low)</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>High</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="chkAutoShutdown">
+                <property name="text">
+                 <string>After finish:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="comboShutdownAction">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <item>
+                 <property name="text">
+                  <string>Shutdown Computer</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Suspend / Sleep</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Hibernate</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Close Application</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnCancelShutdown">
+                <property name="visible">
+                 <bool>false</bool>
+                </property>
+                <property name="text">
+                 <string>Cancel Shutdown (30s)</string>
+                </property>
+                <property name="styleSheet">
+                 <string>background-color: #d9534f; color: white; font-weight: bold;</string>
                 </property>
                </widget>
               </item>
@@ -695,13 +934,93 @@
         <string>Stream Multiplex</string>
        </attribute>
        <layout class="QVBoxLayout" name="tab2Layout">
+        <!-- Top Toolbar -->
         <item>
-         <widget class="QLabel" name="lblMuxHeader">
-          <property name="text">
-           <string>Batch multiplex audio, video, and subtitle tracks into single containers:</string>
-          </property>
-         </widget>
+         <layout class="QHBoxLayout" name="muxTopToolbarLayout">
+          <item>
+           <widget class="QPushButton" name="btnAddMuxJob">
+            <property name="text">
+             <string>+ Add Mux Job...</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnRemoveMuxJob">
+            <property name="text">
+             <string>Remove Selected</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnMuxClear">
+            <property name="text">
+             <string>Clear List</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnMuxMoveUp">
+            <property name="text">
+             <string>▲ Move Up</string>
+            </property>
+            <property name="toolTip">
+             <string>Move selected mux job up in queue</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnMuxMoveDown">
+            <property name="text">
+             <string>▼ Move Down</string>
+            </property>
+            <property name="toolTip">
+             <string>Move selected mux job down in queue</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnMuxSetDefault">
+            <property name="text">
+             <string>★ Toggle Default</string>
+            </property>
+            <property name="toolTip">
+             <string>Toggle whether the audio track is marked as default in the output</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnMuxExtractTrack">
+            <property name="text">
+             <string>💾 Save / Extract Track</string>
+            </property>
+            <property name="toolTip">
+             <string>Extract and save selected audio or subtitle track to disk without re-encoding</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="muxTopSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblMuxJobCount">
+            <property name="text">
+             <string>0 jobs</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
+        <!-- Table -->
         <item>
          <widget class="QTableWidget" name="tableMux">
           <property name="selectionBehavior">
@@ -724,12 +1043,12 @@
           </column>
           <column>
            <property name="text">
-            <string>Subtitle Track</string>
+            <string>Audio Lang</string>
            </property>
           </column>
           <column>
            <property name="text">
-            <string>Audio Lang</string>
+            <string>Subtitle Track</string>
            </property>
           </column>
           <column>
@@ -739,24 +1058,139 @@
           </column>
           <column>
            <property name="text">
+            <string>Default Track</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Output File</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
             <string>Status</string>
            </property>
           </column>
          </widget>
         </item>
+        <!-- Configuration & Parameters Panel -->
+        <item>
+         <widget class="QGroupBox" name="grpMuxConfig">
+          <property name="title">
+           <string>Muxing Options &amp; Destination</string>
+          </property>
+          <layout class="QVBoxLayout" name="muxConfigLayout">
+           <item>
+            <layout class="QHBoxLayout" name="muxRow1Layout">
+             <item>
+              <widget class="QLabel" name="lblMuxContainer">
+               <property name="text">
+                <string>Container Format:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboMuxContainerFormat">
+               <property name="minimumSize">
+                <size>
+                 <width>100</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <item>
+                <property name="text">
+                 <string>mkv</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>mp4</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>mov</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>avi</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>webm</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chkMuxStreamCopy">
+               <property name="text">
+                <string>Stream Copy (-c copy)</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblMuxCustomParam">
+               <property name="text">
+                <string>Additional Parameters:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="txtMuxCustomParam">
+               <property name="placeholderText">
+                <string>e.g. -c:a aac -b:a 192k</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="muxRow2Layout">
+             <item>
+              <widget class="QLabel" name="lblMuxOutputDir">
+               <property name="text">
+                <string>Output Directory:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="txtMuxOutputDir">
+               <property name="placeholderText">
+                <string>Leave empty to save next to source video...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnBrowseMuxOutputDir">
+               <property name="text">
+                <string>Browse...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <!-- Bottom Controls -->
         <item>
          <layout class="QHBoxLayout" name="muxControlsLayout">
           <item>
-           <widget class="QPushButton" name="btnAddMuxJob">
-            <property name="text">
-             <string>+ Add Mux Job</string>
+           <widget class="QPushButton" name="btnStartMux">
+            <property name="minimumSize">
+             <size>
+              <width>130</width>
+              <height>35</height>
+             </size>
             </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnRemoveMuxJob">
             <property name="text">
-             <string>Remove Job</string>
+             <string>Mux All Jobs</string>
             </property>
            </widget>
           </item>
@@ -773,13 +1207,6 @@
             </property>
            </spacer>
           </item>
-          <item>
-           <widget class="QPushButton" name="btnStartMux">
-            <property name="text">
-             <string>Mux All Jobs</string>
-            </property>
-           </widget>
-          </item>
          </layout>
         </item>
        </layout>
@@ -791,42 +1218,89 @@
         <string>Batch Subtitles</string>
        </attribute>
        <layout class="QVBoxLayout" name="tab3Layout">
+        <!-- Configuration GroupBox -->
         <item>
          <widget class="QGroupBox" name="grpSubOptions">
           <property name="title">
-           <string>Subtitle Embedding &amp; Burn-in Configuration</string>
+           <string>Subtitle Formatting &amp; Embedding Options</string>
           </property>
-          <layout class="QGridLayout" name="subOptionsLayout">
-           <item row="0" column="0">
-            <widget class="QRadioButton" name="radBurnSubs">
-             <property name="text">
-              <string>Hardcode / Burn-in Subtitles (-vf subtitles=...)</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-            </widget>
+          <layout class="QVBoxLayout" name="subOptionsMainLayout">
+           <!-- Row 1: Mode & Embedded switch -->
+           <item>
+            <layout class="QHBoxLayout" name="subModeRowLayout">
+             <item>
+              <widget class="QRadioButton" name="radBurnSubs">
+               <property name="text">
+                <string>Hardcode / Burn-in Subtitles (-vf subtitles=...)</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="radSoftSubs">
+               <property name="text">
+                <string>Embed Soft Subtitles (MKV/MP4 stream)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chkUseEmbeddedSub">
+               <property name="text">
+                <string>Use embedded subtitle stream from source video</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="subModeSpacer">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
            </item>
-           <item row="0" column="1">
-            <widget class="QRadioButton" name="radSoftSubs">
-             <property name="text">
-              <string>Embed Soft Subtitles (MKV/MP4 stream)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="lblSubFont">
-             <property name="text">
-              <string>Font Name / Size:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <layout class="QHBoxLayout" name="fontRowLayout">
+           <!-- Row 2: Styling (Font, Size, Color, Language, Preview) -->
+           <item>
+            <layout class="QHBoxLayout" name="subStyleRowLayout">
+             <item>
+              <widget class="QLabel" name="lblSubFont">
+               <property name="text">
+                <string>Font:</string>
+               </property>
+              </widget>
+             </item>
              <item>
               <widget class="QLineEdit" name="txtSubFont">
+               <property name="maximumSize">
+                <size>
+                 <width>140</width>
+                 <height>16777215</height>
+                </size>
+               </property>
                <property name="text">
                 <string>Sans</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnChooseSubFont">
+               <property name="text">
+                <string>Browse Font...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblSubSize">
+               <property name="text">
+                <string>Size:</string>
                </property>
               </widget>
              </item>
@@ -836,61 +1310,245 @@
                 <number>8</number>
                </property>
                <property name="maximum">
-                <number>72</number>
+                <number>96</number>
                </property>
                <property name="value">
                 <number>24</number>
                </property>
               </widget>
              </item>
+             <item>
+              <widget class="QPushButton" name="btnSubSizeMinus">
+               <property name="maximumSize">
+                <size>
+                 <width>32</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>A-</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnSubSizePlus">
+               <property name="maximumSize">
+                <size>
+                 <width>32</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>A+</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnChooseSubColor">
+               <property name="text">
+                <string>Color: White</string>
+               </property>
+               <property name="toolTip">
+                <string>Choose subtitle font primary color</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblSubLanguage">
+               <property name="text">
+                <string>Language:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboSubLanguage">
+               <item>
+                <property name="text">
+                 <string>English (eng)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Spanish (spa)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>French (fra)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>German (deu)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Italian (ita)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Portuguese (por)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Chinese (zho)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Undetermined (und)</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnPreviewSub">
+               <property name="text">
+                <string>👁 Preview (10s)</string>
+               </property>
+               <property name="toolTip">
+                <string>Render a 10-second test encode to verify subtitle styling and position</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="lblSubLanguage">
-             <property name="text">
-              <string>Default Language Tag:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="1">
-            <widget class="QComboBox" name="comboSubLanguage">
+           <!-- Row 3: Output destination and format -->
+           <item>
+            <layout class="QHBoxLayout" name="subDestRowLayout">
              <item>
-              <property name="text">
-               <string>English (eng)</string>
-              </property>
+              <widget class="QLabel" name="lblSubFormat">
+               <property name="text">
+                <string>Output Format:</string>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Spanish (spa)</string>
-              </property>
+              <widget class="QComboBox" name="comboSubContainerFormat">
+               <item>
+                <property name="text">
+                 <string>Same as source</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>mkv</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>mp4</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>mov</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>webm</string>
+                </property>
+               </item>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>French (fra)</string>
-              </property>
+              <widget class="QLabel" name="lblSubOutputDir">
+               <property name="text">
+                <string>Custom Output Folder:</string>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>German (deu)</string>
-              </property>
+              <widget class="QLineEdit" name="txtSubOutputDir">
+               <property name="placeholderText">
+                <string>Leave empty to save next to source video...</string>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Undetermined (und)</string>
-              </property>
+              <widget class="QPushButton" name="btnBrowseSubOutputDir">
+               <property name="text">
+                <string>Browse...</string>
+               </property>
+              </widget>
              </item>
-            </widget>
+            </layout>
            </item>
           </layout>
          </widget>
         </item>
+        <!-- Table Toolbar -->
         <item>
-         <widget class="QLabel" name="lblSubHelp">
-          <property name="text">
-           <string>Subtitles matching source file names (e.g. video.srt next to video.mp4) can be auto-matched or paired manually:</string>
-          </property>
-         </widget>
+         <layout class="QHBoxLayout" name="subsToolbarLayout">
+          <item>
+           <widget class="QPushButton" name="btnAddSubPair">
+            <property name="text">
+             <string>+ Pair Video &amp; Subtitle...</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnAutoMatchSubs">
+            <property name="text">
+             <string>Auto-Match from Folder...</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnRemoveSubPair">
+            <property name="text">
+             <string>Remove Selected</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnClearSubs">
+            <property name="text">
+             <string>Clear List</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnSubMoveUp">
+            <property name="text">
+             <string>▲ Move Up</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnSubMoveDown">
+            <property name="text">
+             <string>▼ Move Down</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="subsToolbarSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblSubCount">
+            <property name="text">
+             <string>0 items</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
+        <!-- Subtitles Table -->
         <item>
          <widget class="QTableWidget" name="tableSubs">
           <property name="selectionBehavior">
@@ -918,6 +1576,11 @@
           </column>
           <column>
            <property name="text">
+            <string>Font &amp; Size</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
             <string>Language</string>
            </property>
           </column>
@@ -928,31 +1591,24 @@
           </column>
          </widget>
         </item>
+        <!-- Action Row -->
         <item>
          <layout class="QHBoxLayout" name="subsBtnLayout">
           <item>
-           <widget class="QPushButton" name="btnAddSubPair">
+           <widget class="QPushButton" name="btnStartSubs">
+            <property name="minimumSize">
+             <size>
+              <width>180</width>
+              <height>35</height>
+             </size>
+            </property>
             <property name="text">
-             <string>+ Pair Video &amp; Subtitle</string>
+             <string>Start Subtitle Processing</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnAutoMatchSubs">
-            <property name="text">
-             <string>Auto-Match from Folder...</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnClearSubs">
-            <property name="text">
-             <string>Clear List</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="subsSpacer">
+           <spacer name="subsBottomSpacer">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
             </property>
@@ -963,13 +1619,6 @@
              </size>
             </property>
            </spacer>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnStartSubs">
-            <property name="text">
-             <string>Start Subtitle Processing</string>
-            </property>
-           </widget>
           </item>
          </layout>
         </item>
@@ -982,6 +1631,7 @@
         <string>Batch URLs / Streams</string>
        </attribute>
        <layout class="QVBoxLayout" name="tab4Layout">
+        <!-- Top Input Row -->
         <item>
          <layout class="QHBoxLayout" name="urlInputRow">
           <item>
@@ -1007,6 +1657,157 @@
           </item>
          </layout>
         </item>
+
+        <!-- Options Box -->
+        <item>
+         <widget class="QGroupBox" name="grpUrlOptions">
+          <property name="title">
+           <string>Stream Capture &amp; Download Configuration</string>
+          </property>
+          <layout class="QVBoxLayout" name="urlOptionsLayout">
+           <item>
+            <layout class="QHBoxLayout" name="urlRow1Layout">
+             <item>
+              <widget class="QLabel" name="lblUrlParams">
+               <property name="text">
+                <string>FFmpeg Parameters:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="txtUrlParams">
+               <property name="text">
+                <string>-bsf:a aac_adtstoasc -c copy</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="lblCookieFile">
+               <property name="text">
+                <string>Cookies File:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="txtCookieFile">
+               <property name="placeholderText">
+                <string>Optional cookies.txt file...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnBrowseCookie">
+               <property name="text">
+                <string>Browse...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="urlRow2Layout">
+             <item>
+              <widget class="QLabel" name="lblUrlOutputDir">
+               <property name="text">
+                <string>Output Directory:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="txtUrlOutputDir">
+               <property name="placeholderText">
+                <string>Leave empty to save into ~/Downloads...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnBrowseUrlOutputDir">
+               <property name="text">
+                <string>Browse...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+
+        <!-- Table Toolbar -->
+        <item>
+         <layout class="QHBoxLayout" name="urlToolbarLayout">
+          <item>
+           <widget class="QPushButton" name="btnValidateUrls">
+            <property name="text">
+             <string>✔ Validate URLs</string>
+            </property>
+            <property name="toolTip">
+             <string>Verify connectivity of all links in the queue</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnRemoveUrlErrors">
+            <property name="text">
+             <string>Remove Broken</string>
+            </property>
+            <property name="toolTip">
+             <string>Remove dead/404 URLs from queue</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnUrlMoveUp">
+            <property name="text">
+             <string>▲ Move Up</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnUrlMoveDown">
+            <property name="text">
+             <string>▼ Move Down</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnRemoveUrl">
+            <property name="text">
+             <string>Remove Selected</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnClearUrls">
+            <property name="text">
+             <string>Clear List</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="urlToolbarSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblUrlCount">
+            <property name="text">
+             <string>0 URLs</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+
+        <!-- Table -->
         <item>
          <widget class="QTableWidget" name="tableUrls">
           <property name="selectionBehavior">
@@ -1039,19 +1840,36 @@
           </column>
          </widget>
         </item>
+
+        <!-- Action Row -->
         <item>
          <layout class="QHBoxLayout" name="urlActionRow">
           <item>
            <widget class="QPushButton" name="btnStartUrlDownloads">
+            <property name="minimumSize">
+             <size>
+              <width>170</width>
+              <height>35</height>
+             </size>
+            </property>
             <property name="text">
              <string>Start Stream Downloads</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnClearUrls">
+           <widget class="QPushButton" name="btnSkipActiveUrl">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>110</width>
+              <height>35</height>
+             </size>
+            </property>
             <property name="text">
-             <string>Clear List</string>
+             <string>Skip Active Stream</string>
             </property>
            </widget>
           </item>
@@ -1072,7 +1890,6 @@
         </item>
        </layout>
       </widget>
-
      </widget>
     </item>
    </layout>
