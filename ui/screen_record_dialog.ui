@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ScreenRecordDialog</class>
+ <widget class="QDialog" name="ScreenRecordDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>550</width>
+    <height>350</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Record Desktop Screen (Linux x11grab)</string>
+  </property>
+  <layout class="QVBoxLayout" name="dialogLayout">
+   <item>
+    <widget class="QGroupBox" name="grpRecordConfig">
+     <property name="title">
+      <string>Capture Settings</string>
+     </property>
+     <layout class="QGridLayout" name="configGrid">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblDisplay">
+        <property name="text">
+         <string>Display Server:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="txtDisplayServer">
+        <property name="text">
+         <string>:0.0</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblFramerate">
+        <property name="text">
+         <string>Framerate (FPS):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="spinFramerate">
+        <property name="minimum">
+         <number>15</number>
+        </property>
+        <property name="maximum">
+         <number>120</number>
+        </property>
+        <property name="value">
+         <number>30</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblRecordAudio">
+        <property name="text">
+         <string>Audio Device:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="comboAudioDevice">
+        <item>
+         <property name="text">
+          <string>default (PulseAudio / PipeWire)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>None (Video Only)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="lblSavePath">
+        <property name="text">
+         <string>Output File:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <layout class="QHBoxLayout" name="pathLayout">
+        <item>
+         <widget class="QLineEdit" name="txtRecordPath">
+          <property name="placeholderText">
+           <string>~/Videos/screen_record.mp4</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnBrowseRecordPath">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="recordStatusLayout">
+     <item>
+      <widget class="QPushButton" name="btnToggleRecord">
+       <property name="minimumSize">
+        <size>
+         <width>140</width>
+         <height>38</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>⏺ Start Recording</string>
+       </property>
+       <property name="styleSheet">
+        <string>font-weight: bold; color: white; background-color: #e74c3c;</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblRecordStatus">
+       <property name="text">
+        <string>Status: Ready to record</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="recSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="recordButtonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

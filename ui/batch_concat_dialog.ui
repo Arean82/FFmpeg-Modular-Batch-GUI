@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>BatchConcatDialog</class>
+ <widget class="QDialog" name="BatchConcatDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>580</width>
+    <height>380</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Batch Intro / Outro Stitching</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainBatchConcatLayout">
+   <item>
+    <widget class="QLabel" name="lblIntroOutroDesc">
+     <property name="text">
+      <string>In this mode, an introductory clip (Intro) and/or ending clip (Outro) will be automatically prepended and appended to every item in the queue.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpClips">
+     <property name="title">
+      <string>Header &amp; Trailer Clips</string>
+     </property>
+     <layout class="QGridLayout" name="gridClips">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblIntro">
+        <property name="text">
+         <string>Intro File (Prepend):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="txtIntroFile">
+        <property name="placeholderText">
+         <string>Path to intro video file (optional)...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="btnBrowseIntro">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblOutro">
+        <property name="text">
+         <string>Outro File (Append):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="txtOutroFile">
+        <property name="placeholderText">
+         <string>Path to outro/ending video file (optional)...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QPushButton" name="btnBrowseOutro">
+        <property name="text">
+         <string>Browse...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpOptions">
+     <property name="title">
+      <string>Encoding Options</string>
+     </property>
+     <layout class="QVBoxLayout" name="optionsLayout">
+      <item>
+       <widget class="QCheckBox" name="chkStreamCopy">
+        <property name="text">
+         <string>Attempt fast stream copy (-c copy) first</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lblCopyNote">
+        <property name="text">
+         <string>Note: If stream copy fails due to codec or resolution mismatches, the stitcher automatically falls back to re-encoding seamlessly.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progStitch">
+     <property name="value">
+      <number>0</number>
+     </property>
+     <property name="textVisible">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="hSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnClose">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnStartStitch">
+       <property name="text">
+        <string>Start Batch Stitching</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

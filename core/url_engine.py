@@ -1,5 +1,7 @@
 """URL / Stream downloader task using native yt-dlp and FFmpeg."""
 import subprocess
+import shlex
+import os
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
@@ -13,10 +15,14 @@ class UrlTaskSignals(QObject):
     log = Signal(str)                      # log line
 
 class UrlStreamTask(QRunnable):
-    def __init__(self, url: str, output_path: str):
+    def __init__(self, url: str, output_path: str, custom_params: str = "",
+                 cookie_file: str = "", speed_limit_kb: int = 0):
         super().__init__()
         self.url = url
         self.output_path = output_path
+        self.custom_params = custom_params.strip() if custom_params else "-bsf:a aac_adtstoasc -c copy"
+        self.cookie_file = cookie_file.strip() if cookie_file else ""
+        self.speed_limit_kb = speed_limit_kb
         self.signals = UrlTaskSignals()
         self.is_cancelled = False
         self.process = None
@@ -26,7 +32,6 @@ class UrlStreamTask(QRunnable):
         self.signals.started.emit(self.url)
         self.signals.log.emit(f">>> Fetching stream for: {self.url}")
 
-        # Check if URL is a direct M3U8/MP4 or needs yt-dlp extraction
         is_direct_stream = any(self.url.lower().endswith(ext) for ext in [".m3u8", ".mp4", ".mkv", ".ts", ".webm"]) or "m3u8" in self.url.lower()
 
         ytdlp_bin = get_binary_path("yt-dlp")
@@ -35,10 +40,12 @@ class UrlStreamTask(QRunnable):
         if is_direct_stream:
             media_url = self.url
         else:
-            # Use yt-dlp to extract direct media link
             try:
-                cmd = [ytdlp_bin, "-g", "--no-warnings", self.url]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+                cmd = [ytdlp_bin, "-g", "--no-warnings"]
+                if self.cookie_file and os.path.exists(self.cookie_file):
+                    cmd.extend(["--cookies", self.cookie_file])
+                cmd.append(self.url)
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                 if res.returncode == 0 and res.stdout.strip():
                     media_url = res.stdout.strip().splitlines()[0]
                 else:
@@ -48,15 +55,16 @@ class UrlStreamTask(QRunnable):
                 self.signals.finished.emit(self.url, False, str(e))
                 return
 
-        # Download and remux with configured FFmpeg
-        cmd = [
-            ffmpeg_bin, "-y",
-            "-i", media_url,
-            "-c", "copy",
-            "-bsf:a", "aac_adtstoasc",
-            "-progress", "pipe:1",
-            self.output_path
-        ]
+        cmd = [ffmpeg_bin, "-y"]
+        if self.cookie_file and os.path.exists(self.cookie_file):
+            cmd.extend(["-headers", f"Cookie: {self._read_cookie_header()}"])
+        cmd.extend(["-i", media_url])
+
+        if self.custom_params:
+            cmd.extend(shlex.split(self.custom_params))
+
+        cmd.extend(["-progress", "pipe:1", self.output_path])
+        self.signals.log.emit(f">>> Running URL stream capture: {' '.join(cmd)}")
 
         try:
             self.process = subprocess.Popen(
@@ -76,7 +84,6 @@ class UrlStreamTask(QRunnable):
 
                 line = line.strip()
                 if "out_time_ms=" in line:
-                    # Generic progress indicator pulse
                     self.signals.progress.emit(self.url, 50.0)
                 elif "progress=end" in line:
                     self.signals.progress.emit(self.url, 100.0)
@@ -88,6 +95,19 @@ class UrlStreamTask(QRunnable):
                 self.signals.finished.emit(self.url, False, f"Error (code {self.process.returncode})")
         except Exception as e:
             self.signals.finished.emit(self.url, False, str(e))
+
+    def _read_cookie_header(self):
+        try:
+            with open(self.cookie_file, "r", encoding="utf-8", errors="ignore") as f:
+                cookies = []
+                for line in f:
+                    if line.strip() and not line.startswith("#"):
+                        parts = line.strip().split("\t")
+                        if len(parts) >= 7:
+                            cookies.append(f"{parts[5]}={parts[6]}")
+                return "; ".join(cookies)
+        except Exception:
+            return ""
 
     def cancel(self):
         self.is_cancelled = True

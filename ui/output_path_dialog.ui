@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OutputPathDialog</class>
+ <widget class="QDialog" name="OutputPathDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>560</width>
+    <height>340</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Manual Output Path &amp; Hierarchy Formatting</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainOutputLayout">
+   <item>
+    <widget class="QGroupBox" name="grpFolderFormat">
+     <property name="title">
+      <string>Destination Directory Strategy</string>
+     </property>
+     <layout class="QVBoxLayout" name="folderStrategyLayout">
+      <item>
+       <widget class="QRadioButton" name="radSameAsSource">
+        <property name="text">
+         <string>Save next to source file in source directory</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radCustomFolder">
+        <property name="text">
+         <string>Save to custom output directory</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="customDirLayout">
+        <property name="leftMargin">
+         <number>20</number>
+        </property>
+        <item>
+         <widget class="QLineEdit" name="txtBaseOutputDir">
+          <property name="placeholderText">
+           <string>Target root directory...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnBrowseDir">
+          <property name="text">
+           <string>Browse...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="chkReplicateTree">
+        <property name="text">
+         <string>Replicate source subfolder directory hierarchy</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpFileNaming">
+     <property name="title">
+      <string>Output File Naming Pattern</string>
+     </property>
+     <layout class="QHBoxLayout" name="fileNamingLayout">
+      <item>
+       <widget class="QLineEdit" name="txtNamingPattern">
+        <property name="text">
+         <string>{name}_converted.{ext}</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblLivePreview">
+     <property name="text">
+      <string>Preview: /path/to/sample_converted.mp4</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="vSpacerOut">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>10</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="hSpacerOut">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCancel">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnApplyPath">
+       <property name="text">
+        <string>Apply Settings</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

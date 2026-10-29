@@ -28,7 +28,10 @@ def probe_file(file_path: str) -> dict[str, Any] | None:
             "video_codec": "N/A",
             "audio_codec": "N/A",
             "resolution": "N/A",
-            "bitrate": int(data.get("format", {}).get("bit_rate", 0)) if data.get("format", {}).get("bit_rate") else 0
+            "bitrate": int(data.get("format", {}).get("bit_rate", 0)) if data.get("format", {}).get("bit_rate") else 0,
+            "framerate": "N/A",
+            "audio_channels": "N/A",
+            "sample_rate": "N/A"
         }
 
         for stream in data.get("streams", []):
@@ -39,8 +42,24 @@ def probe_file(file_path: str) -> dict[str, Any] | None:
                 height = stream.get("height")
                 if width and height:
                     info["resolution"] = f"{width}x{height}"
+                # framerate
+                avg_fps = stream.get("avg_frame_rate", "")
+                if avg_fps and "/" in avg_fps:
+                    try:
+                        num, den = avg_fps.split("/")
+                        if float(den) > 0:
+                            fps_val = float(num) / float(den)
+                            info["framerate"] = f"{fps_val:.2f}".rstrip("0").rstrip(".")
+                    except Exception:
+                        pass
             elif codec_type == "audio" and info["audio_codec"] == "N/A":
                 info["audio_codec"] = stream.get("codec_name", "unknown")
+                ch = stream.get("channels")
+                if ch is not None:
+                    info["audio_channels"] = f"{ch} ch"
+                sr = stream.get("sample_rate")
+                if sr:
+                    info["sample_rate"] = f"{int(sr)//1000} kHz" if int(sr) >= 1000 else f"{sr} Hz"
 
         return info
     except Exception:

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>BatteryPowerDialog</class>
+ <widget class="QDialog" name="BatteryPowerDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>440</width>
+    <height>280</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Battery &amp; AC Power Management</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainPowerLayout">
+   <item>
+    <widget class="QGroupBox" name="grpPowerStatus">
+     <property name="title">
+      <string>Current System Power State</string>
+     </property>
+     <layout class="QHBoxLayout" name="powerStatusLayout">
+      <item>
+       <widget class="QLabel" name="lblCurrentState">
+        <property name="text">
+         <string>Power Source: AC Mains | Battery: 100%</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpPowerOptions">
+     <property name="title">
+      <string>Battery Protection Rules</string>
+     </property>
+     <layout class="QVBoxLayout" name="powerOptionsLayout">
+      <item>
+       <widget class="QCheckBox" name="chkPauseOnBattery">
+        <property name="text">
+         <string>Pause encoding queue automatically when running on Battery</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="thresholdLayout">
+        <property name="leftMargin">
+         <number>20</number>
+        </property>
+        <item>
+         <widget class="QCheckBox" name="chkThreshold">
+          <property name="text">
+           <string>Only pause if battery level is below:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spinBatteryThreshold">
+          <property name="minimum">
+           <number>5</number>
+          </property>
+          <property name="maximum">
+           <number>95</number>
+          </property>
+          <property name="value">
+           <number>25</number>
+          </property>
+          <property name="suffix">
+           <string>%</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="chkResumeOnAC">
+        <property name="text">
+         <string>Auto-resume paused queue when AC adapter is plugged in</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="vSpacerPower">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>10</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="hSpacerPower">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCancel">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnSavePower">
+       <property name="text">
+        <string>Save</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

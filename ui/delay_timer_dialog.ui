@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DelayTimerDialog</class>
+ <widget class="QDialog" name="DelayTimerDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>420</width>
+    <height>280</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Schedule Delayed Batch Execution</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainDelayLayout">
+   <item>
+    <widget class="QGroupBox" name="grpScheduleMode">
+     <property name="title">
+      <string>Delayed Start Timing</string>
+     </property>
+     <layout class="QVBoxLayout" name="scheduleModeLayout">
+      <item>
+       <widget class="QRadioButton" name="radCountdown">
+        <property name="text">
+         <string>Delay by Countdown Timer</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="countdownInputsLayout">
+        <property name="leftMargin">
+         <number>20</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="lblHours">
+          <property name="text">
+           <string>Hours:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spinHours">
+          <property name="maximum">
+           <number>99</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblMinutes">
+          <property name="text">
+           <string>Minutes:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spinMinutes">
+          <property name="maximum">
+           <number>59</number>
+          </property>
+          <property name="value">
+           <number>30</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radSpecificTime">
+        <property name="text">
+         <string>Start at Specific Wall-Clock Time</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="timeInputsLayout">
+        <property name="leftMargin">
+         <number>20</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="lblTargetTime">
+          <property name="text">
+           <string>Target Time (HH:mm):</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTimeEdit" name="timeTarget"/>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblDelayNotes">
+     <property name="text">
+      <string>The application will pause until the scheduled time and automatically initiate the queue.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="vSpacerDelay">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>10</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="hSpacerDelay">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCancel">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnStartSchedule">
+       <property name="text">
+        <string>Arm Schedule</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>QueueFilterDialog</class>
+ <widget class="QDialog" name="QueueFilterDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>380</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Queue Filtering &amp; Batch Selector</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainFilterLayout">
+   <item>
+    <widget class="QGroupBox" name="grpCriteria">
+     <property name="title">
+      <string>Filter Criteria</string>
+     </property>
+     <layout class="QFormLayout" name="formFilterLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="lblFilterBy">
+        <property name="text">
+         <string>Filter by Attribute:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="comboFilterBy"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lblFilterValue">
+        <property name="text">
+         <string>Value / Pattern:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="txtFilterValue">
+        <property name="placeholderText">
+         <string>Enter text, codec name, or threshold...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="lblFilterAction">
+        <property name="text">
+         <string>Action:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="comboAction">
+        <item>
+         <property name="text">
+          <string>Keep matching items (Remove others)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Remove matching items</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="grpQuickFilters">
+     <property name="title">
+      <string>Quick Cleanup Operations</string>
+     </property>
+     <layout class="QVBoxLayout" name="quickFilterLayout">
+      <item>
+       <widget class="QCheckBox" name="chkRemoveInvalid">
+        <property name="text">
+         <string>Remove invalid items (Duration = 0s or N/A)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="chkRemoveNonVideo">
+        <property name="text">
+         <string>Remove audio-only files (No video stream found)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="chkRemoveZeroSize">
+        <property name="text">
+         <string>Remove zero-byte / corrupt files</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblFilterHint">
+     <property name="text">
+      <string>Tip: Select attribute above and apply action to batch-filter queue entries.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="vSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="hSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnCancel">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnApplyFilter">
+       <property name="text">
+        <string>Apply Filter</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

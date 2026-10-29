@@ -11,15 +11,21 @@ os.environ.setdefault("QT_ACCESSIBILITY", "0")
 import shlex
 import subprocess
 
-from PySide6.QtCore import QFile, QIODevice, Qt, QThreadPool
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtCore import QFile, QIODevice, QTime, QTimer, Qt, QThreadPool
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QColorDialog,
+    QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFontDialog,
+    QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QProgressBar,
+    QSystemTrayIcon,
     QTableWidgetItem,
 )
 
@@ -29,12 +35,13 @@ try:
 except ImportError:
     HAS_UILOADER = False
 
-from core.concat_engine import join_files
+from core.concat_engine import join_files, stitch_file_with_intro_outro
 from core.config_manager import get_binary_path, get_config, save_config
 from core.crop_engine import detect_black_bars
 from core.engine import FFmpegTask
 from core.estimations import estimate_size_mb
 from core.mux_engine import MuxJobTask
+from core.power_monitor import get_power_status
 from core.presets import load_presets, save_presets
 from core.probe import probe_file
 from core.readme_viewer import ReadmeViewerDialog
@@ -62,10 +69,32 @@ class FFBatchApp(QMainWindow):
         self.threadpool = QThreadPool()
         self.queue_items = []
         self.active_tasks = []
+        self.is_paused = False
+        self.current_font_size = 10
+        self.sub_color_bgr_hex = "&H00FFFFFF"
+        self.sub_jobs = []
+        self.shutdown_seconds_left = 30
+        self.shutdown_timer = QTimer(self)
+        self.shutdown_timer.setInterval(1000)
+        self.shutdown_timer.timeout.connect(self._on_shutdown_tick)
+
+        # Delayed start schedule timer
+        self.delay_seconds_left = 0
+        self.delay_timer = QTimer(self)
+        self.delay_timer.setInterval(1000)
+        self.delay_timer.timeout.connect(self._on_delay_schedule_tick)
+
+        # Linux Power & Battery monitor timer (checks every 5 seconds)
+        self.power_timer = QTimer(self)
+        self.power_timer.setInterval(5000)
+        self.power_timer.timeout.connect(self._on_power_check_tick)
+        self.power_timer.start()
+        self.auto_paused_by_power = False
 
         self.load_ui()
         self.build_menu_bar()
         self.setup_queue_table()
+        self.setup_system_tray()
         self.connect_signals()
 
     def load_ui(self):
@@ -163,11 +192,32 @@ class FFBatchApp(QMainWindow):
         act_clean_err.triggered.connect(self.on_clean_errors)
         queue_menu.addAction(act_clean_err)
 
+        queue_menu.addSeparator()
+
+        act_adv_filter = QAction("Advanced &Filter...", self)
+        act_adv_filter.setShortcut("Ctrl+F")
+        act_adv_filter.triggered.connect(self.open_queue_filter_dialog)
+        queue_menu.addAction(act_adv_filter)
+
+        act_conf_cols = QAction("Configure &Columns...", self)
+        act_conf_cols.triggered.connect(self.open_custom_columns_dialog)
+        queue_menu.addAction(act_conf_cols)
+
+        queue_menu.addSeparator()
+
+        act_delayed_start = QAction("Schedule &Delayed Start...", self)
+        act_delayed_start.triggered.connect(self.open_delay_timer_dialog)
+        queue_menu.addAction(act_delayed_start)
+
         # 3. Presets Menu
         preset_menu = menubar.addMenu("&Presets")
         act_manage_presets = QAction("&Presets Manager...", self)
         act_manage_presets.triggered.connect(self.open_presets_dialog)
         preset_menu.addAction(act_manage_presets)
+
+        act_online_presets = QAction("&Online & Community Presets...", self)
+        act_online_presets.triggered.connect(self.open_online_presets_dialog)
+        preset_menu.addAction(act_online_presets)
 
         act_multi_presets = QAction("&Multiple Presets Batch Run...", self)
         act_multi_presets.triggered.connect(self.open_multi_presets_dialog)
@@ -179,6 +229,12 @@ class FFBatchApp(QMainWindow):
 
         # 4. Tools Menu
         tools_menu = menubar.addMenu("&Tools")
+
+        act_wizard = QAction("🧙 &Guided Task Wizard...", self)
+        act_wizard.triggered.connect(self.open_task_wizard_dialog)
+        tools_menu.addAction(act_wizard)
+
+        tools_menu.addSeparator()
 
         act_try_preset = QAction("▶ &Try Current Preset (10s)", self)
         act_try_preset.triggered.connect(self.on_try_preset)
@@ -198,9 +254,21 @@ class FFBatchApp(QMainWindow):
         act_join.triggered.connect(self.open_join_dialog)
         tools_menu.addAction(act_join)
 
+        act_batch_stitch = QAction("&Batch Intro / Outro Stitching...", self)
+        act_batch_stitch.triggered.connect(self.open_batch_concat_dialog)
+        tools_menu.addAction(act_batch_stitch)
+
         act_crop = QAction("&Crop & Black Bars Detection...", self)
         act_crop.triggered.connect(self.open_crop_dialog)
         tools_menu.addAction(act_crop)
+
+        act_waveform = QAction("Audio &Waveform Visualizer...", self)
+        act_waveform.triggered.connect(self.open_audio_waveform_dialog)
+        tools_menu.addAction(act_waveform)
+
+        act_screen_rec = QAction("Record Desktop &Screen (x11grab)...", self)
+        act_screen_rec.triggered.connect(self.open_screen_record_dialog)
+        tools_menu.addAction(act_screen_rec)
 
         act_watermark = QAction("&Watermark / Logo Overlay...", self)
         act_watermark.triggered.connect(self.open_watermark_dialog)
@@ -235,6 +303,41 @@ class FFBatchApp(QMainWindow):
         act_stream_mapping = QAction("&Stream Mapping / Muxing...", self)
         act_stream_mapping.triggered.connect(self.open_stream_mapping_dialog)
         tools_menu.addAction(act_stream_mapping)
+
+        act_stream_matrix = QAction("Interactive Stream &Routing Matrix...", self)
+        act_stream_matrix.triggered.connect(self.open_stream_matrix_dialog)
+        tools_menu.addAction(act_stream_matrix)
+
+        act_renamer = QAction("Sequential &Batch File Renamer...", self)
+        act_renamer.triggered.connect(self.open_batch_renamer_dialog)
+        tools_menu.addAction(act_renamer)
+
+        act_split = QAction("S&plit / Segment Media Files...", self)
+        act_split.triggered.connect(self.open_split_video_dialog)
+        tools_menu.addAction(act_split)
+
+        act_chapters = QAction("&Chapter Markers Metadata Creator...", self)
+        act_chapters.triggered.connect(self.open_chapters_dialog)
+        tools_menu.addAction(act_chapters)
+
+        act_log_viewer = QAction("View FFmpeg Full &Log File...", self)
+        act_log_viewer.setShortcut("Ctrl+L")
+        act_log_viewer.triggered.connect(self.open_log_viewer_dialog)
+        tools_menu.addAction(act_log_viewer)
+
+        tools_menu.addSeparator()
+
+        act_hooks = QAction("Post-Processing &Hooks...", self)
+        act_hooks.triggered.connect(self.open_post_process_dialog)
+        tools_menu.addAction(act_hooks)
+
+        act_power = QAction("&Battery & Power Management...", self)
+        act_power.triggered.connect(self.open_battery_power_dialog)
+        tools_menu.addAction(act_power)
+
+        act_output_path = QAction("&Manual Output Path Hierarchy...", self)
+        act_output_path.triggered.connect(self.open_output_path_dialog)
+        tools_menu.addAction(act_output_path)
 
         tools_menu.addSeparator()
 
@@ -363,7 +466,16 @@ class FFBatchApp(QMainWindow):
     def setup_queue_table(self):
         table = self.ui.tableQueue
         table.horizontalHeader().setStretchLastSection(True)
-        table.cellDoubleClicked.connect(lambda row, col: self.open_media_info_dialog())
+        table.cellDoubleClicked.connect(self.on_queue_cell_double_clicked)
+        table.setContextMenuPolicy(Qt.CustomContextMenu)
+        table.customContextMenuRequested.connect(self.show_queue_context_menu)
+        self.apply_column_visibility()
+
+    def on_queue_cell_double_clicked(self, row, col):
+        if col == 1:
+            self.open_frame_preview_dialog(row)
+        else:
+            self.open_media_info_dialog()
 
     def connect_signals(self):
         # Queue toolbar buttons
@@ -373,6 +485,17 @@ class FFBatchApp(QMainWindow):
         self.ui.btnClearQueue.clicked.connect(self.on_clear_queue)
         self.ui.btnCleanErrors.clicked.connect(self.on_clean_errors)
         self.ui.txtFilterQueue.textChanged.connect(self.on_filter_queue)
+        if hasattr(self.ui, "btnAdvancedFilter"):
+            self.ui.btnAdvancedFilter.clicked.connect(self.open_queue_filter_dialog)
+        if hasattr(self.ui, "btnConfigureColumns"):
+            self.ui.btnConfigureColumns.clicked.connect(self.open_custom_columns_dialog)
+
+        # New Queue Toolbar actions
+        self.ui.btnMoveUp.clicked.connect(self.on_move_up)
+        self.ui.btnMoveDown.clicked.connect(self.on_move_down)
+        self.ui.btnRequeue.clicked.connect(self.on_requeue_selected)
+        self.ui.btnIncreaseFont.clicked.connect(self.on_increase_font)
+        self.ui.btnDecreaseFont.clicked.connect(self.on_decrease_font)
 
         # Quick tools
         self.ui.btnTryPreset.clicked.connect(self.on_try_preset)
@@ -380,7 +503,20 @@ class FFBatchApp(QMainWindow):
         self.ui.btnTrimTool.clicked.connect(self.open_trim_dialog)
         self.ui.btnJoinTool.clicked.connect(self.open_join_dialog)
         self.ui.btnCropTool.clicked.connect(self.open_crop_dialog)
+        self.ui.btnAudioWaveform.clicked.connect(self.open_audio_waveform_dialog)
+        self.ui.btnScreenCapture.clicked.connect(self.open_screen_record_dialog)
+        self.ui.btnMultiPresetsBatch.clicked.connect(self.open_multi_presets_dialog)
+        self.ui.btnOpenOutputDirQuick.clicked.connect(self.on_open_output_dir)
         self.ui.btnInsertVariable.clicked.connect(self.open_token_builder_dialog)
+
+        # Execution controls
+        self.ui.btnPause.clicked.connect(self.on_toggle_pause)
+        self.ui.btnSkipCurrent.clicked.connect(self.on_skip_current_file)
+        self.ui.btnAbortAll.clicked.connect(self.stop_processing)
+
+        # Shutdown controls
+        self.ui.chkAutoShutdown.toggled.connect(self.ui.comboShutdownAction.setEnabled)
+        self.ui.btnCancelShutdown.clicked.connect(self.cancel_auto_shutdown)
 
         # Parameters text change updates size estimations
         self.ui.txtParameters.textChanged.connect(self.update_estimated_sizes)
@@ -402,22 +538,52 @@ class FFBatchApp(QMainWindow):
         self.ui.btnAddUrl.clicked.connect(self.on_add_url)
         self.ui.btnImportUrls.clicked.connect(self.on_import_urls)
         self.ui.btnClearUrls.clicked.connect(self.on_clear_urls)
+        self.ui.btnRemoveUrl.clicked.connect(self.on_remove_url)
+        self.ui.btnUrlMoveUp.clicked.connect(self.on_url_move_up)
+        self.ui.btnUrlMoveDown.clicked.connect(self.on_url_move_down)
+        self.ui.btnValidateUrls.clicked.connect(self.on_validate_urls)
+        self.ui.btnRemoveUrlErrors.clicked.connect(self.on_remove_url_errors)
+        self.ui.btnBrowseCookie.clicked.connect(self.on_browse_cookie_file)
+        self.ui.btnBrowseUrlOutputDir.clicked.connect(self.on_browse_url_output_dir)
+        self.ui.btnSkipActiveUrl.clicked.connect(self.on_skip_active_url)
         self.ui.btnStartUrlDownloads.clicked.connect(self.start_url_downloads)
         self.ui.tableUrls.horizontalHeader().setStretchLastSection(True)
+        self.ui.tableUrls.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ui.tableUrls.customContextMenuRequested.connect(self.show_url_context_menu)
+        self.active_url_tasks = []
 
         # Stream Multiplex (Tab 2) controls
         self.ui.btnAddMuxJob.clicked.connect(self.on_add_mux_job)
         self.ui.btnRemoveMuxJob.clicked.connect(self.on_remove_mux_job)
+        self.ui.btnMuxClear.clicked.connect(self.on_clear_mux_jobs)
+        self.ui.btnMuxMoveUp.clicked.connect(self.on_mux_move_up)
+        self.ui.btnMuxMoveDown.clicked.connect(self.on_mux_move_down)
+        self.ui.btnMuxSetDefault.clicked.connect(self.on_mux_toggle_default)
+        self.ui.btnMuxExtractTrack.clicked.connect(self.on_mux_extract_track)
+        self.ui.btnBrowseMuxOutputDir.clicked.connect(self.on_browse_mux_output_dir)
         self.ui.btnStartMux.clicked.connect(self.start_mux_jobs)
         self.ui.tableMux.horizontalHeader().setStretchLastSection(True)
+        self.ui.tableMux.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ui.tableMux.customContextMenuRequested.connect(self.show_mux_context_menu)
         self.mux_jobs = []
 
         # Subtitles (Tab 3) controls
         self.ui.btnAddSubPair.clicked.connect(self.on_add_sub_pair)
         self.ui.btnAutoMatchSubs.clicked.connect(self.on_auto_match_subs)
+        self.ui.btnRemoveSubPair.clicked.connect(self.on_remove_sub_pair)
         self.ui.btnClearSubs.clicked.connect(self.on_clear_subs)
+        self.ui.btnSubMoveUp.clicked.connect(self.on_sub_move_up)
+        self.ui.btnSubMoveDown.clicked.connect(self.on_sub_move_down)
+        self.ui.btnChooseSubFont.clicked.connect(self.on_choose_sub_font)
+        self.ui.btnChooseSubColor.clicked.connect(self.on_choose_sub_color)
+        self.ui.btnSubSizeMinus.clicked.connect(lambda: self.ui.spinSubFontSize.setValue(max(8, self.ui.spinSubFontSize.value() - 2)))
+        self.ui.btnSubSizePlus.clicked.connect(lambda: self.ui.spinSubFontSize.setValue(min(96, self.ui.spinSubFontSize.value() + 2)))
+        self.ui.btnBrowseSubOutputDir.clicked.connect(self.on_browse_sub_output_dir)
+        self.ui.btnPreviewSub.clicked.connect(self.on_preview_subtitles)
         self.ui.btnStartSubs.clicked.connect(self.start_subs_processing)
         self.ui.tableSubs.horizontalHeader().setStretchLastSection(True)
+        self.ui.tableSubs.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ui.tableSubs.customContextMenuRequested.connect(self.show_subs_context_menu)
         self.sub_jobs = []
 
         # Start / Stop
@@ -454,6 +620,14 @@ class FFBatchApp(QMainWindow):
                     if u and (u.startswith("http://") or u.startswith("https://") or u.startswith("rtsp://")):
                         self.add_url_to_table(u)
 
+    def _renumber_urls(self):
+        table = self.ui.tableUrls
+        for r in range(table.rowCount()):
+            it = table.item(r, 0)
+            if it:
+                it.setText(str(r + 1))
+        self.ui.lblUrlCount.setText(f"{table.rowCount()} URLs")
+
     def add_url_to_table(self, url: str):
         table = self.ui.tableUrls
         row = table.rowCount()
@@ -473,9 +647,187 @@ class FFBatchApp(QMainWindow):
         table.setCellWidget(row, 3, bar)
 
         table.setItem(row, 4, QTableWidgetItem("Queued"))
+        self._renumber_urls()
+
+    def on_remove_url(self):
+        table = self.ui.tableUrls
+        selected = table.selectedIndexes()
+        rows = sorted(set(idx.row() for idx in selected), reverse=True)
+        for r in rows:
+            table.removeRow(r)
+        self._renumber_urls()
 
     def on_clear_urls(self):
         self.ui.tableUrls.setRowCount(0)
+        self._renumber_urls()
+
+    def on_url_move_up(self):
+        table = self.ui.tableUrls
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected))
+        if rows[0] == 0:
+            return
+        for r in rows:
+            for col in range(table.columnCount()):
+                if col == 3:
+                    w1 = table.cellWidget(r - 1, col)
+                    w2 = table.cellWidget(r, col)
+                    val1 = w1.value() if w1 else 0
+                    val2 = w2.value() if w2 else 0
+                    if w1: w1.setValue(val2)
+                    if w2: w2.setValue(val1)
+                else:
+                    item1 = table.takeItem(r - 1, col)
+                    item2 = table.takeItem(r, col)
+                    table.setItem(r - 1, col, item2)
+                    table.setItem(r, col, item1)
+        self._renumber_urls()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r - 1)
+
+    def on_url_move_down(self):
+        table = self.ui.tableUrls
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected), reverse=True)
+        if rows[0] >= table.rowCount() - 1:
+            return
+        for r in rows:
+            for col in range(table.columnCount()):
+                if col == 3:
+                    w1 = table.cellWidget(r + 1, col)
+                    w2 = table.cellWidget(r, col)
+                    val1 = w1.value() if w1 else 0
+                    val2 = w2.value() if w2 else 0
+                    if w1: w1.setValue(val2)
+                    if w2: w2.setValue(val1)
+                else:
+                    item1 = table.takeItem(r + 1, col)
+                    item2 = table.takeItem(r, col)
+                    table.setItem(r + 1, col, item2)
+                    table.setItem(r, col, item1)
+        self._renumber_urls()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r + 1)
+
+    def on_validate_urls(self):
+        """Validates URL stream responsiveness using fast HEAD/probe requests."""
+        table = self.ui.tableUrls
+        if table.rowCount() == 0:
+            QMessageBox.information(self, "No URLs", "Please add URLs to validate.")
+            return
+
+        import urllib.request
+        valid_count = 0
+        broken_count = 0
+        self.ui.txtLog.appendPlainText(">>> Validating URLs in queue...")
+
+        for r in range(table.rowCount()):
+            url = table.item(r, 1).text().strip()
+            st_item = table.item(r, 4)
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}, method="HEAD")
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    code = response.getcode()
+                    if 200 <= code < 400:
+                        if st_item:
+                            st_item.setText("Valid (HTTP 200)")
+                        valid_count += 1
+                    else:
+                        if st_item:
+                            st_item.setText(f"HTTP {code}")
+                        broken_count += 1
+            except Exception as e:
+                # Fallback check for yt-dlp supported streams
+                if st_item:
+                    st_item.setText("Offline / Dead")
+                broken_count += 1
+
+        self.ui.txtLog.appendPlainText(f">>> Validation complete: {valid_count} valid, {broken_count} broken/offline.")
+        QMessageBox.information(self, "Validation Complete", f"Validation finished:\n• Valid: {valid_count}\n• Broken / Offline: {broken_count}")
+
+    def on_remove_url_errors(self):
+        table = self.ui.tableUrls
+        rows_to_remove = []
+        for r in range(table.rowCount()):
+            st = table.item(r, 4)
+            if st and any(k in st.text().lower() for k in ["dead", "offline", "failed", "error", "404", "403"]):
+                rows_to_remove.append(r)
+        for r in sorted(rows_to_remove, reverse=True):
+            table.removeRow(r)
+        self._renumber_urls()
+        QMessageBox.information(self, "Clean Complete", f"Removed {len(rows_to_remove)} dead / broken URL rows.")
+
+    def on_browse_cookie_file(self):
+        f, _ = QFileDialog.getOpenFileName(self, "Select Cookies File", "", "Text Files (*.txt);;All Files (*)")
+        if f:
+            self.ui.txtCookieFile.setText(f)
+
+    def on_browse_url_output_dir(self):
+        d = QFileDialog.getExistingDirectory(self, "Select URL Output Directory")
+        if d:
+            self.ui.txtUrlOutputDir.setText(d)
+
+    def on_skip_active_url(self):
+        if hasattr(self, "active_url_tasks"):
+            for t in self.active_url_tasks:
+                if not t.is_cancelled and t.process and t.process.poll() is None:
+                    self.ui.txtLog.appendPlainText(f">>> Skipping active stream: {t.url}")
+                    t.cancel()
+                    break
+
+    def show_url_context_menu(self, pos):
+        table = self.ui.tableUrls
+        menu = QMenu(self)
+
+        act_add = menu.addAction("Add URL...")
+        act_import = menu.addAction("Import URLs from File...")
+        act_paste = menu.addAction("Paste URL from Clipboard")
+        menu.addSeparator()
+
+        selected_indexes = table.selectedIndexes()
+        has_sel = len(selected_indexes) > 0
+
+        act_copy = menu.addAction("Copy URL")
+        act_up = menu.addAction("Move Up")
+        act_down = menu.addAction("Move Down")
+        menu.addSeparator()
+        act_rem = menu.addAction("Remove Selected")
+        act_clean = menu.addAction("Remove Broken URLs")
+        act_clr = menu.addAction("Clear List")
+
+        act_copy.setEnabled(has_sel)
+        act_up.setEnabled(has_sel)
+        act_down.setEnabled(has_sel)
+        act_rem.setEnabled(has_sel)
+
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action == act_add:
+            self.on_add_url()
+        elif action == act_import:
+            self.on_import_urls()
+        elif action == act_paste:
+            cb_text = QApplication.clipboard().text().strip()
+            if cb_text and any(cb_text.startswith(p) for p in ["http://", "https://", "rtsp://", "rtmp://"]):
+                self.add_url_to_table(cb_text)
+        elif action == act_copy and has_sel:
+            row = table.selectedIndexes()[0].row()
+            QApplication.clipboard().setText(table.item(row, 1).text())
+        elif action == act_up:
+            self.on_url_move_up()
+        elif action == act_down:
+            self.on_url_move_down()
+        elif action == act_rem:
+            self.on_remove_url()
+        elif action == act_clean:
+            self.on_remove_url_errors()
+        elif action == act_clr:
+            self.on_clear_urls()
 
     def start_url_downloads(self):
         table = self.ui.tableUrls
@@ -483,22 +835,34 @@ class FFBatchApp(QMainWindow):
             QMessageBox.information(self, "No URLs", "Please add at least one stream URL first.")
             return
 
-        dest_dir = self.ui.txtOutputDir.text().strip()
+        dest_dir = self.ui.txtUrlOutputDir.text().strip()
         if not dest_dir or not os.path.isdir(dest_dir):
             dest_dir = os.path.expanduser("~/Downloads")
 
+        custom_params = self.ui.txtUrlParams.text().strip()
+        cookie_file = self.ui.txtCookieFile.text().strip()
+
         self.ui.btnStartUrlDownloads.setEnabled(False)
+        self.ui.btnSkipActiveUrl.setEnabled(True)
         self.ui.txtLog.appendPlainText(">>> Starting Batch URL Stream Downloads...")
+
+        self.active_url_tasks = []
 
         for r in range(table.rowCount()):
             url = table.item(r, 1).text()
             filename = table.item(r, 2).text()
             out_path = os.path.join(dest_dir, filename)
 
-            task = UrlStreamTask(url, out_path)
+            task = UrlStreamTask(
+                url,
+                out_path,
+                custom_params=custom_params,
+                cookie_file=cookie_file
+            )
             task.signals.progress.connect(self.on_url_progress)
             task.signals.finished.connect(self.on_url_finished)
             task.signals.log.connect(self.on_task_log)
+            self.active_url_tasks.append(task)
             self.threadpool.start(task)
 
     def on_url_progress(self, url: str, percent: float):
@@ -538,9 +902,8 @@ class FFBatchApp(QMainWindow):
                 break
         if all_done:
             self.ui.btnStartUrlDownloads.setEnabled(True)
+            self.ui.btnSkipActiveUrl.setEnabled(False)
             self.ui.txtLog.appendPlainText(">>> Batch URL Downloads Finished.")
-
-    # Stream Multiplexing (Tab 2)
     def on_add_mux_job(self):
         dialog = load_ui_widget("ui/add_mux_job_dialog.ui", self)
 
@@ -563,12 +926,17 @@ class FFBatchApp(QMainWindow):
             audio_lang = dialog.comboAudioLang.currentText()
             sub_file = dialog.txtSubTrack.text().strip()
             sub_lang = dialog.comboSubLang.currentText()
-            container = dialog.comboMuxContainer.currentText()
-            stream_copy = dialog.chkStreamCopy.isChecked()
 
+            # Global tab settings override if set
+            tab_container = self.ui.comboMuxContainerFormat.currentText().strip()
+            container = tab_container if tab_container else dialog.comboMuxContainer.currentText()
+            stream_copy = self.ui.chkMuxStreamCopy.isChecked()
+
+            custom_out_dir = self.ui.txtMuxOutputDir.text().strip()
             src_dir, src_filename = os.path.split(base_vid)
             base_name, _ = os.path.splitext(src_filename)
-            out_file = os.path.join(src_dir, f"{base_name}_muxed.{container}")
+            target_folder = custom_out_dir if (custom_out_dir and os.path.isdir(custom_out_dir)) else src_dir
+            out_file = os.path.join(target_folder, f"{base_name}_muxed.{container}")
 
             job = {
                 "base_video": base_vid,
@@ -576,6 +944,8 @@ class FFBatchApp(QMainWindow):
                 "audio_lang": audio_lang,
                 "sub_track": sub_file,
                 "sub_lang": sub_lang,
+                "default_audio": True,
+                "default_sub": False,
                 "out_path": out_file,
                 "stream_copy": stream_copy
             }
@@ -587,15 +957,26 @@ class FFBatchApp(QMainWindow):
             table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
             table.setItem(row, 1, QTableWidgetItem(os.path.basename(base_vid)))
             table.setItem(row, 2, QTableWidgetItem(os.path.basename(audio_file) if audio_file else "None"))
-            table.setItem(row, 3, QTableWidgetItem(os.path.basename(sub_file) if sub_file else "None"))
-            table.setItem(row, 4, QTableWidgetItem(audio_lang if audio_file else "-"))
+            table.setItem(row, 3, QTableWidgetItem(audio_lang if audio_file else "-"))
+            table.setItem(row, 4, QTableWidgetItem(os.path.basename(sub_file) if sub_file else "None"))
             table.setItem(row, 5, QTableWidgetItem(sub_lang if sub_file else "-"))
-            table.setItem(row, 6, QTableWidgetItem("Ready"))
+            table.setItem(row, 6, QTableWidgetItem("Audio (Default)" if audio_file else "-"))
+            table.setItem(row, 7, QTableWidgetItem(os.path.basename(out_file)))
+            table.setItem(row, 8, QTableWidgetItem("Ready"))
+            self.ui.lblMuxJobCount.setText(f"{len(self.mux_jobs)} jobs")
             dialog.accept()
 
         dialog.muxDialogButtonBox.accepted.connect(accept_job)
         dialog.muxDialogButtonBox.rejected.connect(dialog.reject)
         dialog.exec()
+
+    def _renumber_mux_jobs(self):
+        table = self.ui.tableMux
+        for r in range(table.rowCount()):
+            it = table.item(r, 0)
+            if it:
+                it.setText(str(r + 1))
+        self.ui.lblMuxJobCount.setText(f"{len(self.mux_jobs)} jobs")
 
     def on_remove_mux_job(self):
         table = self.ui.tableMux
@@ -605,6 +986,178 @@ class FFBatchApp(QMainWindow):
             table.removeRow(r)
             if r < len(self.mux_jobs):
                 del self.mux_jobs[r]
+        self._renumber_mux_jobs()
+
+    def on_clear_mux_jobs(self):
+        self.ui.tableMux.setRowCount(0)
+        self.mux_jobs.clear()
+        self.ui.lblMuxJobCount.setText("0 jobs")
+
+    def on_mux_move_up(self):
+        table = self.ui.tableMux
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected))
+        if rows[0] == 0:
+            return
+        for r in rows:
+            self.mux_jobs[r - 1], self.mux_jobs[r] = self.mux_jobs[r], self.mux_jobs[r - 1]
+            for col in range(table.columnCount()):
+                item1 = table.takeItem(r - 1, col)
+                item2 = table.takeItem(r, col)
+                table.setItem(r - 1, col, item2)
+                table.setItem(r, col, item1)
+        self._renumber_mux_jobs()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r - 1)
+
+    def on_mux_move_down(self):
+        table = self.ui.tableMux
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected), reverse=True)
+        if rows[0] >= table.rowCount() - 1:
+            return
+        for r in rows:
+            self.mux_jobs[r + 1], self.mux_jobs[r] = self.mux_jobs[r], self.mux_jobs[r + 1]
+            for col in range(table.columnCount()):
+                item1 = table.takeItem(r + 1, col)
+                item2 = table.takeItem(r, col)
+                table.setItem(r + 1, col, item2)
+                table.setItem(r, col, item1)
+        self._renumber_mux_jobs()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r + 1)
+
+    def on_mux_toggle_default(self):
+        table = self.ui.tableMux
+        selected_rows = sorted(set(idx.row() for idx in table.selectedIndexes()))
+        if not selected_rows:
+            return
+        for r in selected_rows:
+            if r < len(self.mux_jobs):
+                job = self.mux_jobs[r]
+                # Toggle: Audio Default -> Sub Default -> Both -> None
+                cur_audio = job.get("default_audio", True)
+                cur_sub = job.get("default_sub", False)
+                if cur_audio and not cur_sub:
+                    job["default_audio"] = False
+                    job["default_sub"] = True
+                    desc = "Sub (Default)"
+                elif not cur_audio and cur_sub:
+                    job["default_audio"] = True
+                    job["default_sub"] = True
+                    desc = "Audio + Sub (Default)"
+                elif cur_audio and cur_sub:
+                    job["default_audio"] = False
+                    job["default_sub"] = False
+                    desc = "None"
+                else:
+                    job["default_audio"] = True
+                    job["default_sub"] = False
+                    desc = "Audio (Default)"
+                table.setItem(r, 6, QTableWidgetItem(desc))
+
+    def on_mux_extract_track(self):
+        table = self.ui.tableMux
+        selected_rows = sorted(set(idx.row() for idx in table.selectedIndexes()))
+        if not selected_rows:
+            QMessageBox.information(self, "No Job Selected", "Please select a multiplex job first.")
+            return
+        row = selected_rows[0]
+        if row >= len(self.mux_jobs):
+            return
+        job = self.mux_jobs[row]
+
+        # Options dialog: extract audio or sub or video
+        menu = QMenu(self)
+        act_extract_audio = menu.addAction(f"Extract Audio Track ({os.path.basename(job['audio_track']) if job['audio_track'] else 'embedded'})")
+        act_extract_sub = menu.addAction(f"Extract Subtitle Track ({os.path.basename(job['sub_track']) if job['sub_track'] else 'embedded'})")
+        act_extract_audio.setEnabled(bool(job['audio_track'] or job['base_video']))
+        act_extract_sub.setEnabled(bool(job['sub_track'] or job['base_video']))
+
+        action = menu.exec(self.cursor().pos())
+        if not action:
+            return
+
+        ffmpeg_bin = get_binary_path("ffmpeg")
+        if action == act_extract_audio:
+            src = job['audio_track'] or job['base_video']
+            src_dir, src_file = os.path.split(src)
+            base, _ = os.path.splitext(src_file)
+            save_path, _ = QFileDialog.getSaveFileName(self, "Save Audio Track", os.path.join(src_dir, f"{base}_track.aac"), "Audio (*.aac *.mp3 *.flac *.m4a *.wav)")
+            if save_path:
+                cmd = [ffmpeg_bin, "-y", "-i", src, "-vn", "-c:a", "copy", save_path]
+                self.ui.txtLog.appendPlainText(f">>> Extracting Audio Track: {' '.join(cmd)}")
+                res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                self.ui.txtLog.appendPlainText(res.stdout)
+                if res.returncode == 0:
+                    QMessageBox.information(self, "Extraction Complete", f"Audio track saved to:\n{save_path}")
+                else:
+                    QMessageBox.warning(self, "Extraction Failed", f"Failed to extract audio track.\n{res.stdout[-300:]}")
+        elif action == act_extract_sub:
+            src = job['sub_track'] or job['base_video']
+            src_dir, src_file = os.path.split(src)
+            base, _ = os.path.splitext(src_file)
+            save_path, _ = QFileDialog.getSaveFileName(self, "Save Subtitle Track", os.path.join(src_dir, f"{base}_track.srt"), "Subtitles (*.srt *.ass *.vtt)")
+            if save_path:
+                cmd = [ffmpeg_bin, "-y", "-i", src, "-an", "-vn", "-c:s", "copy", save_path]
+                self.ui.txtLog.appendPlainText(f">>> Extracting Subtitle Track: {' '.join(cmd)}")
+                res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                self.ui.txtLog.appendPlainText(res.stdout)
+                if res.returncode == 0:
+                    QMessageBox.information(self, "Extraction Complete", f"Subtitle track saved to:\n{save_path}")
+                else:
+                    QMessageBox.warning(self, "Extraction Failed", f"Failed to extract subtitle track.\n{res.stdout[-300:]}")
+
+    def show_mux_context_menu(self, pos):
+        table = self.ui.tableMux
+        menu = QMenu(self)
+
+        act_add = menu.addAction("Add Mux Job...")
+        menu.addSeparator()
+
+        selected_indexes = table.selectedIndexes()
+        has_sel = len(selected_indexes) > 0
+
+        act_up = menu.addAction("Move Up")
+        act_down = menu.addAction("Move Down")
+        act_def = menu.addAction("Toggle Default Flag")
+        act_ext = menu.addAction("Extract / Save Track...")
+        menu.addSeparator()
+        act_rem = menu.addAction("Remove Selected Job")
+        act_clr = menu.addAction("Clear All Jobs")
+
+        act_up.setEnabled(has_sel)
+        act_down.setEnabled(has_sel)
+        act_def.setEnabled(has_sel)
+        act_ext.setEnabled(has_sel)
+        act_rem.setEnabled(has_sel)
+
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action == act_add:
+            self.on_add_mux_job()
+        elif action == act_up:
+            self.on_mux_move_up()
+        elif action == act_down:
+            self.on_mux_move_down()
+        elif action == act_def:
+            self.on_mux_toggle_default()
+        elif action == act_ext:
+            self.on_mux_extract_track()
+        elif action == act_rem:
+            self.on_remove_mux_job()
+        elif action == act_clr:
+            self.on_clear_mux_jobs()
+
+    def on_browse_mux_output_dir(self):
+        d = QFileDialog.getExistingDirectory(self, "Select Mux Output Directory")
+        if d:
+            self.ui.txtMuxOutputDir.setText(d)
 
     def start_mux_jobs(self):
         if not self.mux_jobs:
@@ -614,7 +1167,29 @@ class FFBatchApp(QMainWindow):
         self.ui.btnStartMux.setEnabled(False)
         self.ui.txtLog.appendPlainText(">>> Starting Multiplex Jobs...")
 
-        for _idx, job in enumerate(self.mux_jobs):
+        # Global overrides from tab controls
+        stream_copy_flag = self.ui.chkMuxStreamCopy.isChecked()
+        custom_params = self.ui.txtMuxCustomParam.text().strip()
+        custom_out_dir = self.ui.txtMuxOutputDir.text().strip()
+        container_fmt = self.ui.comboMuxContainerFormat.currentText().strip() or "mkv"
+
+        for idx, job in enumerate(self.mux_jobs):
+            # Recalculate output path if custom directory or format is specified
+            base_vid = job["base_video"]
+            src_dir, src_filename = os.path.split(base_vid)
+            base_name, _ = os.path.splitext(src_filename)
+            target_dir = custom_out_dir if (custom_out_dir and os.path.isdir(custom_out_dir)) else src_dir
+            final_out_path = os.path.join(target_dir, f"{base_name}_muxed.{container_fmt}")
+            job["out_path"] = final_out_path
+
+            table_item_out = self.ui.tableMux.item(idx, 7)
+            if table_item_out:
+                table_item_out.setText(os.path.basename(final_out_path))
+
+            table_item_status = self.ui.tableMux.item(idx, 8)
+            if table_item_status:
+                table_item_status.setText("Muxing...")
+
             task = MuxJobTask(
                 job["base_video"],
                 job["audio_track"],
@@ -622,7 +1197,10 @@ class FFBatchApp(QMainWindow):
                 job["sub_track"],
                 job["sub_lang"],
                 job["out_path"],
-                job["stream_copy"]
+                stream_copy=stream_copy_flag,
+                default_audio=job.get("default_audio", True),
+                default_sub=job.get("default_sub", False),
+                custom_params=custom_params
             )
             task.signals.finished.connect(self.on_mux_finished)
             task.signals.log.connect(self.on_task_log)
@@ -632,7 +1210,7 @@ class FFBatchApp(QMainWindow):
         table = self.ui.tableMux
         for r in range(table.rowCount()):
             if r < len(self.mux_jobs) and self.mux_jobs[r]["base_video"] == base_video:
-                item = table.item(r, 6)
+                item = table.item(r, 8)
                 if item:
                     item.setText("Completed" if success else f"Failed: {msg}")
                 break
@@ -640,22 +1218,96 @@ class FFBatchApp(QMainWindow):
         # Check if all mux jobs finished
         all_done = True
         for r in range(table.rowCount()):
-            st = table.item(r, 6)
-            if st and st.text() == "Ready":
+            st = table.item(r, 8)
+            if st and st.text() in ["Ready", "Muxing..."]:
                 all_done = False
                 break
         if all_done:
             self.ui.btnStartMux.setEnabled(True)
             self.ui.txtLog.appendPlainText(">>> All Multiplex Jobs Finished.")
-
     # Subtitle Processing (Tab 3)
+    def on_choose_sub_font(self):
+        cur_font_name = self.ui.txtSubFont.text().strip() or "Sans"
+        cur_size = self.ui.spinSubFontSize.value()
+        from PySide6.QtGui import QFont
+        initial_font = QFont(cur_font_name, cur_size)
+        ok, font = QFontDialog.getFont(initial_font, self, "Choose Subtitle Font")
+        if ok:
+            self.ui.txtSubFont.setText(font.family())
+            self.ui.spinSubFontSize.setValue(font.pointSize())
+
+    def on_choose_sub_color(self):
+        from PySide6.QtGui import QColor
+        color = QColorDialog.getColor(QColor(255, 255, 255), self, "Choose Subtitle Font Color")
+        if color.isValid():
+            # In ASS subtitles, PrimaryColour is in format &HAABBGGRR (Alpha, Blue, Green, Red)
+            # Default Alpha = 00
+            b = color.blue()
+            g = color.green()
+            r = color.red()
+            self.sub_color_bgr_hex = f"&H00{b:02X}{g:02X}{r:02X}"
+            hex_name = color.name()
+            self.ui.btnChooseSubColor.setText(f"Color: {hex_name}")
+            self.ui.btnChooseSubColor.setStyleSheet(f"background-color: {hex_name}; color: {'black' if color.lightness() > 128 else 'white'}; font-weight: bold;")
+
+    def on_browse_sub_output_dir(self):
+        d = QFileDialog.getExistingDirectory(self, "Select Subtitle Output Directory")
+        if d:
+            self.ui.txtSubOutputDir.setText(d)
+
+    def on_preview_subtitles(self):
+        """Generates a fast 10-second sample with current subtitle style and launches player."""
+        if not self.sub_jobs:
+            QMessageBox.information(self, "No File", "Please add at least one video to preview subtitles.")
+            return
+        job = self.sub_jobs[0]
+        src_path = job["video_path"]
+        sub_path = job.get("sub_path", "")
+        src_dir, src_file = os.path.split(src_path)
+        base, _ = os.path.splitext(src_file)
+        preview_out = os.path.join(src_dir, f"{base}_sub_preview_10s.mp4")
+
+        ffmpeg_bin = get_binary_path("ffmpeg")
+        font_name = self.ui.txtSubFont.text().strip() or "Sans"
+        font_size = self.ui.spinSubFontSize.value()
+        color_hex = getattr(self, "sub_color_bgr_hex", "&H00FFFFFF")
+        use_embedded = self.ui.chkUseEmbeddedSub.isChecked()
+
+        if use_embedded or not sub_path:
+            escaped_vid = src_path.replace(":", r"\:").replace(chr(39), r"'")
+            sub_filter = f"subtitles='{escaped_vid}':force_style='FontName={font_name},FontSize={font_size},PrimaryColour={color_hex}'"
+        else:
+            escaped_sub = sub_path.replace(":", r"\:").replace(chr(39), r"'")
+            sub_filter = f"subtitles='{escaped_sub}':force_style='FontName={font_name},FontSize={font_size},PrimaryColour={color_hex}'"
+
+        cmd = [
+            ffmpeg_bin, "-y",
+            "-ss", "00:00:30",
+            "-i", src_path,
+            "-t", "10",
+            "-vf", sub_filter,
+            "-c:a", "aac",
+            preview_out
+        ]
+        self.ui.txtLog.appendPlainText(f">>> Generating 10s Subtitle Preview: {' '.join(cmd)}")
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.ui.txtLog.appendPlainText(res.stdout)
+        if res.returncode == 0:
+            self.ui.txtLog.appendPlainText(f">>> Subtitle preview generated: {preview_out}")
+            # Attempt to launch with default player or mpv/vlc
+            subprocess.Popen(["xdg-open", preview_out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            QMessageBox.information(self, "Preview Ready", f"10-second subtitle preview generated successfully:\n{preview_out}")
+        else:
+            QMessageBox.warning(self, "Preview Failed", f"Failed to generate preview:\n{res.stdout[-300:]}")
+
     def on_add_sub_pair(self):
         vid, _ = QFileDialog.getOpenFileName(self, "Select Video File", "", "Videos (*.mp4 *.mkv *.avi *.mov *.ts)")
         if not vid:
             return
-        sub, _ = QFileDialog.getOpenFileName(self, "Select Matching Subtitle File", os.path.dirname(vid), "Subtitles (*.srt *.ass *.vtt *.sub)")
-        if not sub:
-            return
+        use_embedded = self.ui.chkUseEmbeddedSub.isChecked()
+        sub = ""
+        if not use_embedded:
+            sub, _ = QFileDialog.getOpenFileName(self, "Select Matching Subtitle File", os.path.dirname(vid), "Subtitles (*.srt *.ass *.vtt *.sub)")
         self.add_sub_job_to_table(vid, sub)
 
     def on_auto_match_subs(self):
@@ -681,6 +1333,103 @@ class FFBatchApp(QMainWindow):
                     found += 1
         QMessageBox.information(self, "Auto-Match Results", f"Auto-matched {found} video and subtitle pairs.")
 
+    def _renumber_sub_jobs(self):
+        table = self.ui.tableSubs
+        for r in range(table.rowCount()):
+            it = table.item(r, 0)
+            if it:
+                it.setText(str(r + 1))
+        self.ui.lblSubCount.setText(f"{len(self.sub_jobs)} items")
+
+    def on_remove_sub_pair(self):
+        table = self.ui.tableSubs
+        selected = table.selectedIndexes()
+        rows = sorted(set(idx.row() for idx in selected), reverse=True)
+        for r in rows:
+            table.removeRow(r)
+            if r < len(self.sub_jobs):
+                del self.sub_jobs[r]
+        self._renumber_sub_jobs()
+
+    def on_sub_move_up(self):
+        table = self.ui.tableSubs
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected))
+        if rows[0] == 0:
+            return
+        for r in rows:
+            self.sub_jobs[r - 1], self.sub_jobs[r] = self.sub_jobs[r], self.sub_jobs[r - 1]
+            for col in range(table.columnCount()):
+                item1 = table.takeItem(r - 1, col)
+                item2 = table.takeItem(r, col)
+                table.setItem(r - 1, col, item2)
+                table.setItem(r, col, item1)
+        self._renumber_sub_jobs()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r - 1)
+
+    def on_sub_move_down(self):
+        table = self.ui.tableSubs
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected), reverse=True)
+        if rows[0] >= table.rowCount() - 1:
+            return
+        for r in rows:
+            self.sub_jobs[r + 1], self.sub_jobs[r] = self.sub_jobs[r], self.sub_jobs[r + 1]
+            for col in range(table.columnCount()):
+                item1 = table.takeItem(r + 1, col)
+                item2 = table.takeItem(r, col)
+                table.setItem(r + 1, col, item2)
+                table.setItem(r, col, item1)
+        self._renumber_sub_jobs()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r + 1)
+
+    def show_subs_context_menu(self, pos):
+        table = self.ui.tableSubs
+        menu = QMenu(self)
+
+        act_add = menu.addAction("Pair Video & Subtitle...")
+        act_auto = menu.addAction("Auto-Match from Folder...")
+        act_prev = menu.addAction("Preview Subtitles (10s)")
+        menu.addSeparator()
+
+        selected_indexes = table.selectedIndexes()
+        has_sel = len(selected_indexes) > 0
+
+        act_up = menu.addAction("Move Up")
+        act_down = menu.addAction("Move Down")
+        menu.addSeparator()
+        act_rem = menu.addAction("Remove Selected")
+        act_clr = menu.addAction("Clear List")
+
+        act_prev.setEnabled(has_sel)
+        act_up.setEnabled(has_sel)
+        act_down.setEnabled(has_sel)
+        act_rem.setEnabled(has_sel)
+
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action == act_add:
+            self.on_add_sub_pair()
+        elif action == act_auto:
+            self.on_auto_match_subs()
+        elif action == act_prev:
+            self.on_preview_subtitles()
+        elif action == act_up:
+            self.on_sub_move_up()
+        elif action == act_down:
+            self.on_sub_move_down()
+        elif action == act_rem:
+            self.on_remove_sub_pair()
+        elif action == act_clr:
+            self.on_clear_subs()
+
     def add_sub_job_to_table(self, vid_path: str, sub_path: str):
         is_burn = self.ui.radBurnSubs.isChecked()
         mode_str = "Burn-in (Hardcode)" if is_burn else "Embed Soft"
@@ -690,13 +1439,18 @@ class FFBatchApp(QMainWindow):
         else:
             lang_code = "eng"
 
+        font_name = self.ui.txtSubFont.text().strip() or "Sans"
+        font_size = self.ui.spinSubFontSize.value()
+        use_embedded = self.ui.chkUseEmbeddedSub.isChecked()
+
         job = {
             "video_path": vid_path,
             "sub_path": sub_path,
             "mode": "burn" if is_burn else "embed",
             "lang": lang_code,
-            "font_name": self.ui.txtSubFont.text().strip() or "Sans",
-            "font_size": self.ui.spinSubFontSize.value()
+            "font_name": font_name,
+            "font_size": font_size,
+            "use_embedded": use_embedded
         }
         self.sub_jobs.append(job)
 
@@ -705,14 +1459,18 @@ class FFBatchApp(QMainWindow):
         table.insertRow(row)
         table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
         table.setItem(row, 1, QTableWidgetItem(os.path.basename(vid_path)))
-        table.setItem(row, 2, QTableWidgetItem(os.path.basename(sub_path)))
+        sub_desc = "[Embedded Stream]" if (use_embedded or not sub_path) else os.path.basename(sub_path)
+        table.setItem(row, 2, QTableWidgetItem(sub_desc))
         table.setItem(row, 3, QTableWidgetItem(mode_str))
-        table.setItem(row, 4, QTableWidgetItem(lang_code))
-        table.setItem(row, 5, QTableWidgetItem("Ready"))
+        table.setItem(row, 4, QTableWidgetItem(f"{font_name} ({font_size}pt)"))
+        table.setItem(row, 5, QTableWidgetItem(lang_code))
+        table.setItem(row, 6, QTableWidgetItem("Ready"))
+        self.ui.lblSubCount.setText(f"{len(self.sub_jobs)} items")
 
     def on_clear_subs(self):
         self.ui.tableSubs.setRowCount(0)
         self.sub_jobs.clear()
+        self.ui.lblSubCount.setText("0 items")
 
     def start_subs_processing(self):
         if not self.sub_jobs:
@@ -722,22 +1480,29 @@ class FFBatchApp(QMainWindow):
         self.ui.btnStartSubs.setEnabled(False)
         self.ui.txtLog.appendPlainText(">>> Starting Subtitle Processing Jobs...")
 
-        dest_dir = self.ui.txtOutputDir.text().strip()
-        custom_dest = self.ui.radCustomFolder.isChecked()
+        dest_dir = self.ui.txtSubOutputDir.text().strip()
+        fmt_choice = self.ui.comboSubContainerFormat.currentText().strip()
 
         for _idx, job in enumerate(self.sub_jobs):
             src_path = job["video_path"]
             src_dir, src_file = os.path.split(src_path)
             base_name, ext = os.path.splitext(src_file)
 
-            if custom_dest and dest_dir and os.path.isdir(dest_dir):
+            if dest_dir and os.path.isdir(dest_dir):
                 target_folder = dest_dir
             else:
                 target_folder = src_dir
 
-            target_ext = ".mkv" if job["mode"] == "embed" else ext
+            if fmt_choice and fmt_choice != "Same as source":
+                target_ext = f".{fmt_choice}"
+            elif job["mode"] == "embed":
+                target_ext = ".mkv"
+            else:
+                target_ext = ext
+
             out_path = os.path.join(target_folder, f"{base_name}_subbed{target_ext}")
 
+            color_hex = getattr(self, "sub_color_bgr_hex", "&H00FFFFFF")
             task = SubtitleTask(
                 job["video_path"],
                 job["sub_path"],
@@ -745,7 +1510,9 @@ class FFBatchApp(QMainWindow):
                 job["font_name"],
                 job["font_size"],
                 job["lang"],
-                out_path
+                out_path,
+                font_color_hex=color_hex,
+                use_embedded=job.get("use_embedded", False)
             )
             task.signals.finished.connect(self.on_subs_finished)
             task.signals.log.connect(self.on_task_log)
@@ -755,21 +1522,20 @@ class FFBatchApp(QMainWindow):
         table = self.ui.tableSubs
         for r in range(table.rowCount()):
             if r < len(self.sub_jobs) and self.sub_jobs[r]["video_path"] == video_path:
-                item = table.item(r, 5)
+                item = table.item(r, 6)
                 if item:
                     item.setText("Completed" if success else f"Failed: {msg}")
                 break
 
         all_done = True
         for r in range(table.rowCount()):
-            st = table.item(r, 5)
-            if st and st.text() == "Ready":
+            st = table.item(r, 6)
+            if st and st.text() in ["Ready", "Processing..."]:
                 all_done = False
                 break
         if all_done:
             self.ui.btnStartSubs.setEnabled(True)
             self.ui.txtLog.appendPlainText(">>> Subtitle Batch Processing Finished.")
-
     def on_dest_toggle(self):
         custom = self.ui.radCustomFolder.isChecked()
         self.ui.txtOutputDir.setEnabled(custom)
@@ -908,6 +1674,201 @@ class FFBatchApp(QMainWindow):
             if r < len(self.queue_items):
                 del self.queue_items[r]
         self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
+        self._renumber_queue()
+
+    def _renumber_queue(self):
+        table = self.ui.tableQueue
+        for r in range(table.rowCount()):
+            it = table.item(r, 0)
+            if it:
+                it.setText(str(r + 1))
+            if r < len(self.queue_items):
+                self.queue_items[r]["row"] = r
+
+    def on_move_up(self):
+        table = self.ui.tableQueue
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected))
+        if rows[0] == 0:
+            return  # Already at top
+        for r in rows:
+            # Swap items in self.queue_items
+            self.queue_items[r - 1], self.queue_items[r] = self.queue_items[r], self.queue_items[r - 1]
+            # Swap table row contents
+            for col in range(table.columnCount()):
+                if col == 7:
+                    # Progress bar widget
+                    w1 = table.cellWidget(r - 1, col)
+                    w2 = table.cellWidget(r, col)
+                    val1 = w1.value() if w1 else 0
+                    val2 = w2.value() if w2 else 0
+                    if w1: w1.setValue(val2)
+                    if w2: w2.setValue(val1)
+                else:
+                    item1 = table.takeItem(r - 1, col)
+                    item2 = table.takeItem(r, col)
+                    table.setItem(r - 1, col, item2)
+                    table.setItem(r, col, item1)
+        self._renumber_queue()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r - 1)
+
+    def on_move_down(self):
+        table = self.ui.tableQueue
+        selected = table.selectedIndexes()
+        if not selected:
+            return
+        rows = sorted(set(idx.row() for idx in selected), reverse=True)
+        if rows[0] >= table.rowCount() - 1:
+            return  # Already at bottom
+        for r in rows:
+            self.queue_items[r + 1], self.queue_items[r] = self.queue_items[r], self.queue_items[r + 1]
+            for col in range(table.columnCount()):
+                if col == 7:
+                    w1 = table.cellWidget(r + 1, col)
+                    w2 = table.cellWidget(r, col)
+                    val1 = w1.value() if w1 else 0
+                    val2 = w2.value() if w2 else 0
+                    if w1: w1.setValue(val2)
+                    if w2: w2.setValue(val1)
+                else:
+                    item1 = table.takeItem(r + 1, col)
+                    item2 = table.takeItem(r, col)
+                    table.setItem(r + 1, col, item2)
+                    table.setItem(r, col, item1)
+        self._renumber_queue()
+        table.clearSelection()
+        for r in rows:
+            table.selectRow(r + 1)
+
+    def on_requeue_selected(self):
+        table = self.ui.tableQueue
+        selected_rows = set(idx.row() for idx in table.selectedIndexes())
+        if not selected_rows:
+            # Requeue all completed or failed items if none selected
+            selected_rows = set(range(table.rowCount()))
+        for r in selected_rows:
+            if r < len(self.queue_items):
+                self.queue_items[r]["status"] = "Pending"
+            st = table.item(r, 8)
+            if st:
+                st.setText("Pending")
+            bar = table.cellWidget(r, 7)
+            if bar:
+                bar.setValue(0)
+        self.ui.overallProgress.setValue(0)
+        self.ui.txtLog.appendPlainText(f">>> Requeued {len(selected_rows)} items back to Pending status.")
+
+    def on_increase_font(self):
+        if self.current_font_size < 20:
+            self.current_font_size += 1
+            font = self.ui.tableQueue.font()
+            font.setPointSize(self.current_font_size)
+            self.ui.tableQueue.setFont(font)
+
+    def on_decrease_font(self):
+        if self.current_font_size > 7:
+            self.current_font_size -= 1
+            font = self.ui.tableQueue.font()
+            font.setPointSize(self.current_font_size)
+            self.ui.tableQueue.setFont(font)
+
+    def show_queue_context_menu(self, pos):
+        table = self.ui.tableQueue
+        menu = QMenu(self)
+
+        act_add_files = menu.addAction("Add Files...")
+        act_add_folder = menu.addAction("Add Folder...")
+        act_paste_path = menu.addAction("Paste Path from Clipboard")
+        menu.addSeparator()
+
+        selected_indexes = table.selectedIndexes()
+        has_sel = len(selected_indexes) > 0
+
+        act_open_dir = menu.addAction("Open Source Directory")
+        act_open_dest = menu.addAction("Open Output Directory")
+        act_preview_frame = menu.addAction("Preview Frame (Thumbnail)")
+        act_preview_cmd = menu.addAction("Copy FFmpeg Command")
+        act_mediainfo = menu.addAction("Show Media Info (Ctrl+I)")
+        menu.addSeparator()
+
+        act_filter = menu.addAction("Filter Queue...")
+        act_cols = menu.addAction("Configure Columns...")
+        menu.addSeparator()
+
+        act_up = menu.addAction("Move Up")
+        act_down = menu.addAction("Move Down")
+        act_requeue = menu.addAction("Requeue Item(s)")
+        act_remove = menu.addAction("Remove Selected")
+        act_clear = menu.addAction("Clear List")
+
+        act_open_dir.setEnabled(has_sel)
+        act_preview_frame.setEnabled(has_sel)
+        act_preview_cmd.setEnabled(has_sel)
+        act_mediainfo.setEnabled(has_sel)
+        act_up.setEnabled(has_sel)
+        act_down.setEnabled(has_sel)
+        act_requeue.setEnabled(has_sel)
+        act_remove.setEnabled(has_sel)
+
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action == act_add_files:
+            self.on_add_files()
+        elif action == act_add_folder:
+            self.on_add_folder()
+        elif action == act_paste_path:
+            clipboard_text = QApplication.clipboard().text().strip()
+            if clipboard_text and os.path.exists(clipboard_text):
+                if os.path.isdir(clipboard_text):
+                    for root, _, files in os.walk(clipboard_text):
+                        for f in sorted(files):
+                            self.add_file_to_queue(os.path.join(root, f))
+                else:
+                    self.add_file_to_queue(clipboard_text)
+        elif action == act_open_dir and has_sel:
+            row = table.selectedIndexes()[0].row()
+            if row < len(self.queue_items):
+                p = os.path.dirname(self.queue_items[row]["path"])
+                subprocess.Popen(["xdg-open", p], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif action == act_open_dest:
+            self.on_open_output_dir()
+        elif action == act_preview_frame and has_sel:
+            row = table.selectedIndexes()[0].row()
+            self.open_frame_preview_dialog(row)
+        elif action == act_preview_cmd and has_sel:
+            self.on_show_console_cmd()
+        elif action == act_mediainfo and has_sel:
+            self.open_media_info_dialog()
+        elif action == act_filter:
+            self.open_queue_filter_dialog()
+        elif action == act_cols:
+            self.open_custom_columns_dialog()
+        elif action == act_up:
+            self.on_move_up()
+        elif action == act_down:
+            self.on_move_down()
+        elif action == act_requeue:
+            self.on_requeue_selected()
+        elif action == act_remove:
+            self.on_remove_selected()
+        elif action == act_clear:
+            self.on_clear_queue()
+
+    def on_open_output_dir(self):
+        custom_dest = self.ui.radCustomFolder.isChecked()
+        dest_dir = self.ui.txtOutputDir.text().strip()
+        target_dir = None
+        if custom_dest and dest_dir and os.path.isdir(dest_dir):
+            target_dir = dest_dir
+        elif self.queue_items:
+            target_dir = os.path.dirname(self.queue_items[0]["path"])
+        else:
+            target_dir = os.path.expanduser("~")
+        if target_dir and os.path.exists(target_dir):
+            subprocess.Popen(["xdg-open", target_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def on_browse_output(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Output Directory")
@@ -1888,11 +2849,20 @@ class FFBatchApp(QMainWindow):
                     coord = "x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
                 wm_extra = f" -i \"{wm_path}\" -filter_complex \"overlay={coord}\""
 
+        self.is_paused = False
         self.ui.btnStart.setEnabled(False)
+        self.ui.btnPause.setEnabled(True)
+        self.ui.btnPause.setText("Pause")
         self.ui.btnStop.setEnabled(True)
+        self.ui.btnSkipCurrent.setEnabled(True)
+        self.ui.btnAbortAll.setEnabled(True)
         self.ui.txtLog.appendPlainText(">>> Batch Processing Started...")
 
         self.active_tasks.clear()
+
+        pre_input_val = self.ui.txtPreInput.text().strip() if hasattr(self.ui, "txtPreInput") else ""
+        overwrite_val = self.ui.chkOverwrite.isChecked() if hasattr(self.ui, "chkOverwrite") else True
+        cpu_prio_val = self.ui.comboCpuPriority.currentText() if hasattr(self.ui, "comboCpuPriority") else "Normal"
 
         for _idx, item in enumerate(self.queue_items):
             src_path = item["path"]
@@ -1906,12 +2876,22 @@ class FFBatchApp(QMainWindow):
 
             out_filename = f"{base_name}_converted.{out_ext}"
             out_path = os.path.join(target_folder, out_filename)
+            item["output_path"] = out_path
 
             combined_params = f"{params_template}{fade_extra}{wm_extra}".strip()
             final_params = substitute_tokens(combined_params, src_path, out_path, item["meta"])
 
             is_two_pass = hasattr(self.ui, "chkTwoPass") and self.ui.chkTwoPass.isChecked()
-            task = FFmpegTask(src_path, out_path, final_params, item["meta"].get("duration", 0), two_pass=is_two_pass)
+            task = FFmpegTask(
+                src_path,
+                out_path,
+                final_params,
+                item["meta"].get("duration", 0),
+                two_pass=is_two_pass,
+                pre_input=pre_input_val,
+                overwrite=overwrite_val,
+                cpu_priority=cpu_prio_val
+            )
             task.signals.progress.connect(self.on_task_progress)
             task.signals.log.connect(self.on_task_log)
             task.signals.finished.connect(self.on_task_finished)
@@ -1945,6 +2925,7 @@ class FFBatchApp(QMainWindow):
         self.ui.txtLog.appendPlainText(line)
 
     def on_task_finished(self, file_path: str, success: bool, msg: str):
+        out_path = ""
         for idx, item in enumerate(self.queue_items):
             if item["path"] == file_path:
                 status_item = self.ui.tableQueue.item(idx, 8)
@@ -1957,7 +2938,18 @@ class FFBatchApp(QMainWindow):
                 else:
                     if status_item:
                         status_item.setText(f"Failed ({msg})")
+                out_path = item.get("output_path", "")
                 break
+
+        # Check Per-File Hook (Form13/Form14 Parity)
+        cfg = get_config()
+        if success and cfg.get("hook_per_file_enabled") and cfg.get("hook_per_file_cmd"):
+            cmd_tmpl = cfg["hook_per_file_cmd"]
+            cmd_exec = cmd_tmpl.replace("{input}", file_path).replace("{output}", out_path).replace("{status}", "Completed")
+            try:
+                subprocess.Popen(cmd_exec, shell=True)
+            except Exception as e:
+                self.ui.txtLog.appendPlainText(f"⚠ Per-file hook error: {e}")
 
         # Check if entire queue has finished
         all_finished = True
@@ -1974,7 +2966,11 @@ class FFBatchApp(QMainWindow):
 
         if all_finished and self.active_tasks:
             self.ui.btnStart.setEnabled(True)
+            self.ui.btnPause.setEnabled(False)
+            self.ui.btnPause.setText("Pause")
             self.ui.btnStop.setEnabled(False)
+            self.ui.btnSkipCurrent.setEnabled(False)
+            self.ui.btnAbortAll.setEnabled(False)
             self.ui.overallProgress.setValue(100)
             self.setWindowTitle("FFmpeg Batch AV Converter (Linux Native)")
             self.ui.txtLog.appendPlainText(f">>> Batch Finished! {completed_count}/{len(self.queue_items)} files converted successfully.")
@@ -2005,6 +3001,14 @@ class FFBatchApp(QMainWindow):
 
             # 3. Post-Task Action (External script, Suspend, or Shutdown)
             cfg = get_config()
+            if cfg.get("hook_on_complete_enabled") and cfg.get("hook_on_complete_cmd"):
+                cmd_complete = cfg["hook_on_complete_cmd"]
+                self.ui.txtLog.appendPlainText(f">>> Executing queue completion hook: {cmd_complete}")
+                try:
+                    subprocess.Popen(cmd_complete, shell=True)
+                except Exception as e:
+                    self.ui.txtLog.appendPlainText(f"⚠ Completion hook error: {e}")
+
             if cfg.get("run_script_enabled") and cfg.get("run_script_path"):
                 scr = cfg["run_script_path"]
                 if os.path.isfile(scr) and os.access(scr, os.X_OK):
@@ -2014,27 +3018,93 @@ class FFBatchApp(QMainWindow):
                     except Exception as e:
                         self.ui.txtLog.appendPlainText(f"⚠ Script execution error: {e}")
 
-            action = cfg.get("on_finish_action", "none")
-            if action == "sleep":
-                self.ui.txtLog.appendPlainText(">>> Triggering computer sleep (systemctl suspend)...")
-                try:
-                    subprocess.Popen(["systemctl", "suspend"])
-                except Exception:
-                    pass
-            elif action == "shutdown":
-                self.ui.txtLog.appendPlainText(">>> Triggering computer shutdown (systemctl poweroff)...")
-                try:
-                    subprocess.Popen(["systemctl", "poweroff"])
-                except Exception:
-                    pass
+            # Check UI auto-shutdown selection
+            if hasattr(self.ui, "chkAutoShutdown") and self.ui.chkAutoShutdown.isChecked():
+                self.start_auto_shutdown_countdown()
+            else:
+                action = cfg.get("on_finish_action", "none")
+                if action == "sleep":
+                    self.ui.txtLog.appendPlainText(">>> Triggering computer sleep (systemctl suspend)...")
+                    try:
+                        subprocess.Popen(["systemctl", "suspend"])
+                    except Exception:
+                        pass
+                elif action == "shutdown":
+                    self.ui.txtLog.appendPlainText(">>> Triggering computer shutdown (systemctl poweroff)...")
+                    try:
+                        subprocess.Popen(["systemctl", "poweroff"])
+                    except Exception:
+                        pass
+
+    def on_toggle_pause(self):
+        if not self.is_paused:
+            self.is_paused = True
+            self.ui.btnPause.setText("Resume")
+            for task in self.active_tasks:
+                task.pause()
+            self.ui.txtLog.appendPlainText(">>> Batch processing PAUSED.")
+        else:
+            self.is_paused = False
+            self.ui.btnPause.setText("Pause")
+            for task in self.active_tasks:
+                task.resume()
+            self.ui.txtLog.appendPlainText(">>> Batch processing RESUMED.")
+
+    def on_skip_current_file(self):
+        """Skips the first currently active encoding worker."""
+        for task in self.active_tasks:
+            if not task.is_cancelled and task.process and task.process.poll() is None:
+                self.ui.txtLog.appendPlainText(f">>> Skipping current file: {os.path.basename(task.file_path)}")
+                task.cancel()
+                break
 
     def stop_processing(self):
+        self.is_paused = False
         for task in self.active_tasks:
             task.cancel()
         self.ui.btnStart.setEnabled(True)
+        self.ui.btnPause.setEnabled(False)
+        self.ui.btnPause.setText("Pause")
         self.ui.btnStop.setEnabled(False)
+        self.ui.btnSkipCurrent.setEnabled(False)
+        self.ui.btnAbortAll.setEnabled(False)
         self.setWindowTitle("FFmpeg Batch AV Converter (Linux Native)")
-        self.ui.txtLog.appendPlainText(">>> Batch Processing Stopped by User.")
+        self.ui.txtLog.appendPlainText(">>> Batch Processing Stopped / Aborted by User.")
+
+    def start_auto_shutdown_countdown(self):
+        self.shutdown_seconds_left = 30
+        self.ui.btnCancelShutdown.setVisible(True)
+        action_name = self.ui.comboShutdownAction.currentText()
+        self.ui.btnCancelShutdown.setText(f"Cancel {action_name} ({self.shutdown_seconds_left}s)")
+        self.ui.txtLog.appendPlainText(f">>> Action scheduled: {action_name} in 30 seconds. Press cancel button to abort.")
+        self.shutdown_timer.start()
+
+    def _on_shutdown_tick(self):
+        self.shutdown_seconds_left -= 1
+        action_name = self.ui.comboShutdownAction.currentText()
+        if self.shutdown_seconds_left > 0:
+            self.ui.btnCancelShutdown.setText(f"Cancel {action_name} ({self.shutdown_seconds_left}s)")
+        else:
+            self.shutdown_timer.stop()
+            self.ui.btnCancelShutdown.setVisible(False)
+            self._execute_shutdown_action(action_name)
+
+    def cancel_auto_shutdown(self):
+        self.shutdown_timer.stop()
+        self.ui.btnCancelShutdown.setVisible(False)
+        self.ui.chkAutoShutdown.setChecked(False)
+        self.ui.txtLog.appendPlainText(">>> Scheduled completion action CANCELLED by user.")
+
+    def _execute_shutdown_action(self, action_name: str):
+        self.ui.txtLog.appendPlainText(f">>> Executing action: {action_name}...")
+        if "Shutdown" in action_name:
+            subprocess.Popen(["systemctl", "poweroff"])
+        elif "Suspend" in action_name or "Sleep" in action_name:
+            subprocess.Popen(["systemctl", "suspend"])
+        elif "Hibernate" in action_name:
+            subprocess.Popen(["systemctl", "hibernate"])
+        elif "Close" in action_name:
+            self.close()
 
     def closeEvent(self, event):
         """Warn user if active encoding tasks exist before closing."""
@@ -2054,6 +3124,418 @@ class FFBatchApp(QMainWindow):
                 event.ignore()
         else:
             event.accept()
+
+    # Item 7: System Tray Integration (matching Windows Settings.to_tray)
+    def setup_system_tray(self):
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
+        icon = QIcon(icon_path) if os.path.exists(icon_path) else self.windowIcon()
+        self.tray_icon = QSystemTrayIcon(icon, self)
+
+        tray_menu = QMenu(self)
+        act_show = tray_menu.addAction("Show / Restore")
+        act_show.triggered.connect(self.showNormal)
+        act_pause = tray_menu.addAction("Pause / Resume Queue")
+        act_pause.triggered.connect(self.on_toggle_pause)
+        tray_menu.addSeparator()
+        act_quit = tray_menu.addAction("Quit Application")
+        act_quit.triggered.connect(QApplication.instance().quit)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self._on_tray_activated)
+        self.tray_icon.show()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.DoubleClick or reason == QSystemTrayIcon.Trigger:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.showNormal()
+                self.activateWindow()
+
+    # Item 6: Audio Waveform Visualizer (button22)
+    def open_audio_waveform_dialog(self):
+        if not self.queue_items:
+            QMessageBox.information(self, "No Media", "Please add a media file with audio to the queue first.")
+            return
+
+        selected_row = self.ui.tableQueue.currentRow()
+        if selected_row < 0 or selected_row >= len(self.queue_items):
+            selected_row = 0
+
+        target_path = self.queue_items[selected_row]["path"]
+        dlg = load_ui_widget("ui/waveform_dialog.ui", self)
+        dlg.lblFile.setText(f"Media File: {os.path.basename(target_path)}")
+
+        from PySide6.QtGui import QPixmap
+
+        def render_waveform():
+            dlg.lblWaveformImage.setText("Generating waveform with FFmpeg...")
+            dlg.lblWaveformImage.setPixmap(QPixmap())
+            QApplication.processEvents()
+
+            color_choice = dlg.comboWaveColor.currentText()
+            hex_color = color_choice[color_choice.find("(") + 1 : color_choice.rfind(")")]
+
+            tmp_png = os.path.join(os.path.expanduser("~"), ".cache", "ffbatch_waveform.png")
+            os.makedirs(os.path.dirname(tmp_png), exist_ok=True)
+
+            ffmpeg_bin = get_binary_path("ffmpeg")
+            cmd = [
+                ffmpeg_bin, "-y",
+                "-i", target_path,
+                "-filter_complex", f"aformat=channel_layouts=mono,showwavespic=s=800x240:colors={hex_color}",
+                "-frames:v", "1",
+                tmp_png
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            if res.returncode == 0 and os.path.exists(tmp_png):
+                pix = QPixmap(tmp_png)
+                dlg.lblWaveformImage.setPixmap(pix)
+            else:
+                dlg.lblWaveformImage.setText(f"Waveform generation failed (no audio stream found)")
+
+        render_waveform()
+        dlg.btnRegenerate.clicked.connect(render_waveform)
+
+        def save_image():
+            tmp_png = os.path.join(os.path.expanduser("~"), ".cache", "ffbatch_waveform.png")
+            if not os.path.exists(tmp_png):
+                return
+            dest, _ = QFileDialog.getSaveFileName(dlg, "Save Waveform Image", "waveform.png", "PNG Images (*.png)")
+            if dest:
+                import shutil
+                shutil.copyfile(tmp_png, dest)
+                QMessageBox.information(dlg, "Saved", f"Waveform saved to:\n{dest}")
+
+        dlg.btnSaveWaveform.clicked.connect(save_image)
+        dlg.waveformButtonBox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    # Item 5: Linux Screen Recording Tool (btn_capture using x11grab)
+    def open_screen_record_dialog(self):
+        dlg = load_ui_widget("ui/screen_record_dialog.ui", self)
+        display_var = os.environ.get("DISPLAY", ":0.0")
+        dlg.txtDisplayServer.setText(display_var)
+
+        default_out = os.path.join(os.path.expanduser("~/Videos"), "screen_recording.mp4")
+        dlg.txtRecordPath.setText(default_out)
+
+        def browse_path():
+            f, _ = QFileDialog.getSaveFileName(dlg, "Save Screen Recording", default_out, "Videos (*.mp4 *.mkv)")
+            if f:
+                dlg.txtRecordPath.setText(f)
+
+        dlg.btnBrowseRecordPath.clicked.connect(browse_path)
+
+        rec_process = {"proc": None, "timer": None, "seconds": 0}
+
+        def on_tick():
+            rec_process["seconds"] += 1
+            sec = rec_process["seconds"]
+            dlg.lblRecordStatus.setText(f"Recording active: {sec // 60:02d}:{sec % 60:02d}")
+
+        rec_timer = QTimer(dlg)
+        rec_timer.setInterval(1000)
+        rec_timer.timeout.connect(on_tick)
+        rec_process["timer"] = rec_timer
+
+        def toggle_record():
+            if rec_process["proc"] is None:
+                # Start recording
+                out_file = dlg.txtRecordPath.text().strip() or default_out
+                os.makedirs(os.path.dirname(os.path.abspath(out_file)), exist_ok=True)
+                disp = dlg.txtDisplayServer.text().strip() or ":0.0"
+                fps = dlg.spinFramerate.value()
+                audio_choice = dlg.comboAudioDevice.currentText()
+
+                ffmpeg_bin = get_binary_path("ffmpeg")
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-video_size", "1920x1080",
+                    "-framerate", str(fps),
+                    "-f", "x11grab",
+                    "-i", disp
+                ]
+                if "PulseAudio" in audio_choice or "default" in audio_choice:
+                    cmd.extend(["-f", "pulse", "-i", "default"])
+                cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", out_file])
+
+                self.ui.txtLog.appendPlainText(f">>> Launching screen recording: {' '.join(cmd)}")
+                try:
+                    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    rec_process["proc"] = p
+                    rec_process["seconds"] = 0
+                    rec_timer.start()
+                    dlg.btnToggleRecord.setText("⏹ Stop Recording")
+                    dlg.btnToggleRecord.setStyleSheet("font-weight: bold; color: white; background-color: #27ae60;")
+                    dlg.lblRecordStatus.setText("Recording active: 00:00")
+                except Exception as e:
+                    QMessageBox.warning(dlg, "Recording Error", f"Failed to start screen recording:\n{e}")
+            else:
+                # Stop recording
+                p = rec_process["proc"]
+                rec_timer.stop()
+                try:
+                    # Send 'q' to ffmpeg stdin for graceful termination
+                    p.communicate(input=b"q", timeout=3)
+                except Exception:
+                    p.terminate()
+                rec_process["proc"] = None
+                dlg.btnToggleRecord.setText("⏺ Start Recording")
+                dlg.btnToggleRecord.setStyleSheet("font-weight: bold; color: white; background-color: #e74c3c;")
+                out_file = dlg.txtRecordPath.text().strip() or default_out
+                dlg.lblRecordStatus.setText(f"Saved: {os.path.basename(out_file)}")
+                # Ask to add to queue
+                reply = QMessageBox.question(
+                    dlg,
+                    "Add to Batch Queue?",
+                    f"Recording completed successfully!\nFile: {out_file}\n\nAdd this recording to the batch processing queue?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                if reply == QMessageBox.Yes:
+                    self.add_file_to_queue(out_file)
+
+        dlg.btnToggleRecord.clicked.connect(toggle_record)
+
+        def on_close():
+            if rec_process["proc"] is not None:
+                toggle_record()
+            dlg.reject()
+
+        dlg.recordButtonBox.rejected.connect(on_close)
+        dlg.exec()
+
+    # Form16: Full Log File Viewer Dialog
+    def open_log_viewer_dialog(self):
+        dlg = load_ui_widget("ui/log_viewer_dialog.ui", self)
+        full_text = self.ui.txtLog.toPlainText()
+        dlg.txtFullLog.setPlainText(full_text)
+
+        def on_filter_log(keyword):
+            if not keyword.strip():
+                dlg.txtFullLog.setPlainText(full_text)
+                return
+            lines = [l for l in full_text.splitlines() if keyword.lower() in l.lower()]
+            dlg.txtFullLog.setPlainText("\n".join(lines))
+
+        dlg.txtLogSearch.textChanged.connect(on_filter_log)
+        dlg.btnClearLog.clicked.connect(lambda: dlg.txtFullLog.clear())
+        dlg.btnCopyLog.clicked.connect(lambda: QApplication.clipboard().setText(dlg.txtFullLog.toPlainText()))
+        dlg.logButtonBox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    # Form20: Sequential Batch File Renamer
+    def open_batch_renamer_dialog(self):
+        if not self.queue_items:
+            QMessageBox.information(self, "Queue Empty", "Please add files to the queue before renaming.")
+            return
+
+        dlg = load_ui_widget("ui/batch_renamer_dialog.ui", self)
+        table = dlg.tableRenamePreview
+        table.horizontalHeader().setStretchLastSection(True)
+
+        def update_preview():
+            table.setRowCount(0)
+            prefix = dlg.txtBasePrefix.text().strip()
+            suffix = dlg.txtSuffix.text().strip()
+            start_num = dlg.spinStartNumber.value()
+            digits = dlg.spinDigits.value()
+
+            for idx, item in enumerate(self.queue_items):
+                orig_file = os.path.basename(item["path"])
+                _, ext = os.path.splitext(orig_file)
+                num_str = str(start_num + idx).zfill(digits)
+                new_file = f"{prefix}{num_str}{suffix}{ext}" if prefix or suffix else orig_file
+
+                r = table.rowCount()
+                table.insertRow(r)
+                table.setItem(r, 0, QTableWidgetItem(orig_file))
+                table.setItem(r, 1, QTableWidgetItem(new_file))
+
+        dlg.txtBasePrefix.textChanged.connect(update_preview)
+        dlg.txtSuffix.textChanged.connect(update_preview)
+        dlg.spinStartNumber.valueChanged.connect(update_preview)
+        dlg.spinDigits.valueChanged.connect(update_preview)
+        update_preview()
+
+        def apply_renaming():
+            renamed_count = 0
+            for r in range(table.rowCount()):
+                new_name = table.item(r, 1).text()
+                if r < len(self.queue_items):
+                    old_path = self.queue_items[r]["path"]
+                    d, _ = os.path.split(old_path)
+                    new_path = os.path.join(d, new_name)
+                    if old_path != new_path:
+                        try:
+                            os.rename(old_path, new_path)
+                            self.queue_items[r]["path"] = new_path
+                            self.ui.tableQueue.item(r, 1).setText(new_name)
+                            renamed_count += 1
+                        except Exception as e:
+                            self.ui.txtLog.appendPlainText(f"⚠ Rename failed for {old_path}: {e}")
+            QMessageBox.information(dlg, "Rename Complete", f"Successfully renamed {renamed_count} files.")
+            dlg.accept()
+
+        dlg.renameButtonBox.button(QDialogButtonBox.Apply).clicked.connect(apply_renaming)
+        dlg.renameButtonBox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    # AeroWizard2: Split / Segment Media Files
+    def open_split_video_dialog(self):
+        if not self.queue_items:
+            QMessageBox.information(self, "Queue Empty", "Please add a media file to the queue first.")
+            return
+
+        dlg = load_ui_widget("ui/split_video_dialog.ui", self)
+        target_item = self.queue_items[0]
+        src_path = target_item["path"]
+        total_duration = target_item["meta"].get("duration", 0.0)
+        dlg.lblTargetFile.setText(f"Target File: {os.path.basename(src_path)} ({int(total_duration)}s)")
+
+        def on_mode_change():
+            by_dur = dlg.radSplitDuration.isChecked()
+            dlg.spinSegmentSeconds.setEnabled(by_dur)
+            dlg.spinPartCount.setEnabled(not by_dur)
+
+        dlg.radSplitDuration.toggled.connect(on_mode_change)
+        dlg.radSplitCount.toggled.connect(on_mode_change)
+
+        def on_sec_change(val):
+            mins = val / 60.0
+            dlg.lblMinutesHelper.setText(f"({mins:.1f} minutes)")
+
+        dlg.spinSegmentSeconds.valueChanged.connect(on_sec_change)
+
+        def run_split():
+            ffmpeg_bin = get_binary_path("ffmpeg")
+            src_dir, src_file = os.path.split(src_path)
+            base, ext = os.path.splitext(src_file)
+            out_pattern = os.path.join(src_dir, f"{base}_part%03d{ext}")
+
+            if dlg.radSplitDuration.isChecked():
+                seg_time = dlg.spinSegmentSeconds.value()
+            else:
+                parts = max(2, dlg.spinPartCount.value())
+                seg_time = max(5, int(total_duration / parts)) if total_duration > 0 else 60
+
+            cmd = [
+                ffmpeg_bin, "-y",
+                "-i", src_path,
+                "-c", "copy",
+                "-map", "0",
+                "-segment_time", str(seg_time),
+                "-f", "segment",
+                "-reset_timestamps", "1",
+                out_pattern
+            ]
+            self.ui.txtLog.appendPlainText(f">>> Running Video Split: {' '.join(cmd)}")
+            dlg.progSplit.setValue(30)
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.ui.txtLog.appendPlainText(res.stdout)
+            dlg.progSplit.setValue(100)
+            if res.returncode == 0:
+                QMessageBox.information(dlg, "Split Complete", f"Media split successfully into segments:\n{out_pattern}")
+                dlg.accept()
+            else:
+                QMessageBox.warning(dlg, "Split Failed", f"Splitting failed:\n{res.stdout[-300:]}")
+
+        dlg.splitButtonBox.button(QDialogButtonBox.Apply).clicked.connect(run_split)
+        dlg.splitButtonBox.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    # AeroWizard6: Chapters Metadata Creator
+    def open_chapters_dialog(self):
+        dlg = load_ui_widget("ui/chapters_dialog.ui", self)
+        table = dlg.tableChapters
+        table.horizontalHeader().setStretchLastSection(True)
+
+        def add_ch():
+            t = dlg.txtChapterTime.text().strip()
+            title = dlg.txtChapterTitle.text().strip() or "Chapter"
+            if not t:
+                return
+            r = table.rowCount()
+            table.insertRow(r)
+            table.setItem(r, 0, QTableWidgetItem(str(r + 1)))
+            table.setItem(r, 1, QTableWidgetItem(t))
+            table.setItem(r, 2, QTableWidgetItem(title))
+            dlg.txtChapterTime.clear()
+            dlg.txtChapterTitle.clear()
+
+        dlg.btnAddChapter.clicked.connect(add_ch)
+        dlg.btnRemoveChapter.clicked.connect(lambda: [table.removeRow(idx.row()) for idx in sorted(table.selectedIndexes(), reverse=True)])
+        dlg.btnClearChapters.clicked.connect(lambda: table.setRowCount(0))
+
+        def export_txt():
+            f, _ = QFileDialog.getSaveFileName(dlg, "Export FFMETADATA File", "metadata.txt", "Text Files (*.txt)")
+            if f:
+                with open(f, "w", encoding="utf-8") as fp:
+                    fp.write(";FFMETADATA1\n")
+                    for r in range(table.rowCount()):
+                        time_str = table.item(r, 1).text()
+                        title = table.item(r, 2).text()
+                        parts = [int(p) for p in time_str.split(":")]
+                        if len(parts) == 3:
+                            sec = parts[0] * 3600 + parts[1] * 60 + parts[2]
+                        elif len(parts) == 2:
+                            sec = parts[0] * 60 + parts[1]
+                        else:
+                            sec = parts[0]
+                        start_ms = sec * 1000
+                        fp.write(f"[CHAPTER]\nTIMEBASE=1/1000\nSTART={start_ms}\nEND={start_ms + 60000}\ntitle={title}\n\n")
+                QMessageBox.information(dlg, "Exported", f"FFMETADATA file exported to:\n{f}")
+
+        dlg.btnExportChaptersTxt.clicked.connect(export_txt)
+
+        def inject_chapters():
+            if not self.queue_items:
+                QMessageBox.warning(dlg, "No Target", "Please select a video file in the queue.")
+                return
+            target_path = self.queue_items[0]["path"]
+            src_dir, src_file = os.path.split(target_path)
+            base, ext = os.path.splitext(src_file)
+            out_file = os.path.join(src_dir, f"{base}_with_chapters{ext}")
+
+            tmp_meta = os.path.join(src_dir, "tmp_meta.txt")
+            with open(tmp_meta, "w", encoding="utf-8") as fp:
+                fp.write(";FFMETADATA1\n")
+                for r in range(table.rowCount()):
+                    time_str = table.item(r, 1).text()
+                    title = table.item(r, 2).text()
+                    parts = [int(p) for p in time_str.split(":")]
+                    if len(parts) == 3:
+                        sec = parts[0] * 3600 + parts[1] * 60 + parts[2]
+                    elif len(parts) == 2:
+                        sec = parts[0] * 60 + parts[1]
+                    else:
+                        sec = parts[0]
+                    start_ms = sec * 1000
+                    fp.write(f"[CHAPTER]\nTIMEBASE=1/1000\nSTART={start_ms}\nEND={start_ms + 60000}\ntitle={title}\n\n")
+
+            ffmpeg_bin = get_binary_path("ffmpeg")
+            cmd = [
+                ffmpeg_bin, "-y",
+                "-i", target_path,
+                "-i", tmp_meta,
+                "-map_metadata", "1",
+                "-c", "copy",
+                out_file
+            ]
+            self.ui.txtLog.appendPlainText(f">>> Injecting Chapters: {' '.join(cmd)}")
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            if os.path.exists(tmp_meta):
+                os.remove(tmp_meta)
+            if res.returncode == 0:
+                QMessageBox.information(dlg, "Injection Complete", f"Chapters injected successfully:\n{out_file}")
+                dlg.accept()
+            else:
+                QMessageBox.warning(dlg, "Injection Failed", f"Failed to inject chapters:\n{res.stdout[-300:]}")
+
+        dlg.btnInjectChapters.clicked.connect(inject_chapters)
+        dlg.chaptersButtonBox.rejected.connect(dlg.reject)
+        dlg.exec()
 
     def open_target_size_dialog(self):
         """Open Target File Size & Two-Pass Bitrate Calculator dialog."""
@@ -2115,13 +3597,777 @@ class FFBatchApp(QMainWindow):
         dlg.targetButtonBox.button(QDialogButtonBox.Close).clicked.connect(dlg.reject)
         dlg.exec()
 
+    # Phase 1: Queue Inspection, Filtering & Customization
+    def apply_column_visibility(self):
+        """Applies saved column visibility preferences to tableQueue."""
+        cfg = get_config()
+        # Default: 0:#, 1:File Name, 2:Duration, 3:Video Codec, 4:Audio Codec, 5:Size, 6:Est. Size, 7:Progress, 8:Status
+        # All columns visible by default
+        visible_cols = cfg.get("queue_visible_columns", list(range(9)))
+        table = self.ui.tableQueue
+        for c in range(table.columnCount()):
+            table.setColumnHidden(c, c not in visible_cols)
+
+    def open_custom_columns_dialog(self):
+        """Allows configuring which queue table columns are visible."""
+        dlg = load_ui_widget("ui/custom_columns_dialog.ui", self)
+        table = self.ui.tableQueue
+
+        col_names = []
+        for c in range(table.columnCount()):
+            header_item = table.horizontalHeaderItem(c)
+            col_names.append(header_item.text() if header_item else f"Column {c}")
+
+        cfg = get_config()
+        visible_cols = set(cfg.get("queue_visible_columns", list(range(table.columnCount()))))
+
+        for idx, name in enumerate(col_names):
+            item = QListWidgetItem(name, dlg.listColumns)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            # Column 1 (File Name) and 8 (Status) are mandatory for UX, others optional
+            is_checked = idx in visible_cols or idx in (1, 8)
+            item.setCheckState(Qt.Checked if is_checked else Qt.Unchecked)
+
+        def on_select_all():
+            for r in range(dlg.listColumns.count()):
+                dlg.listColumns.item(r).setCheckState(Qt.Checked)
+
+        def on_reset():
+            for r in range(dlg.listColumns.count()):
+                dlg.listColumns.item(r).setCheckState(Qt.Checked)
+
+        def on_apply():
+            selected = []
+            for r in range(dlg.listColumns.count()):
+                if dlg.listColumns.item(r).checkState() == Qt.Checked:
+                    selected.append(r)
+            if 1 not in selected:
+                selected.append(1)  # Ensure File Name is always visible
+            selected.sort()
+            cfg["queue_visible_columns"] = selected
+            save_config(cfg)
+            self.apply_column_visibility()
+            dlg.accept()
+
+        dlg.btnSelectAll.clicked.connect(on_select_all)
+        dlg.btnResetDefault.clicked.connect(on_reset)
+        dlg.btnSaveColumns.clicked.connect(on_apply)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def open_queue_filter_dialog(self):
+        """Advanced queue filtering and batch cleanup dialog."""
+        dlg = load_ui_widget("ui/queue_filter_dialog.ui", self)
+        table = self.ui.tableQueue
+
+        criteria = [
+            "File Name",
+            "Status",
+            "Video Codec",
+            "Audio Codec",
+            "Duration (seconds >)",
+            "Duration (seconds <)",
+            "Size (MB >)",
+            "Size (MB <)",
+            "Total Bitrate (kbps >)",
+            "Total Bitrate (kbps <)",
+            "Resolution"
+        ]
+        dlg.comboFilterBy.addItems(criteria)
+
+        def on_apply():
+            attr = dlg.comboFilterBy.currentText()
+            val = dlg.txtFilterValue.text().strip().lower()
+            action_keep = dlg.comboAction.currentIndex() == 0  # 0: Keep matching, 1: Remove matching
+            rem_invalid = dlg.chkRemoveInvalid.isChecked()
+            rem_novideo = dlg.chkRemoveNonVideo.isChecked()
+            rem_zerosize = dlg.chkRemoveZeroSize.isChecked()
+
+            rows_to_remove = []
+            for row in range(len(self.queue_items)):
+                item_data = self.queue_items[row]
+                meta = item_data.get("meta", {})
+                dur = meta.get("duration", 0.0)
+                size_mb = meta.get("size", 0) / (1024 * 1024)
+                vcodec = meta.get("video_codec", "").lower()
+                acodec = meta.get("audio_codec", "").lower()
+                res = meta.get("resolution", "").lower()
+                status = item_data.get("status", "").lower()
+                fname = os.path.basename(item_data.get("path", "")).lower()
+                bitrate_kbps = meta.get("bitrate", 0) / 1000
+
+                # Check quick cleanup flags
+                if rem_invalid and (dur <= 0 or not meta):
+                    rows_to_remove.append(row)
+                    continue
+                if rem_novideo and (not vcodec or vcodec in ("n/a", "none")):
+                    rows_to_remove.append(row)
+                    continue
+                if rem_zerosize and size_mb <= 0:
+                    rows_to_remove.append(row)
+                    continue
+
+                # Check attribute criteria if value provided
+                if val:
+                    matches = False
+                    if attr == "File Name":
+                        matches = val in fname
+                    elif attr == "Status":
+                        matches = val in status
+                    elif attr == "Video Codec":
+                        matches = val in vcodec
+                    elif attr == "Audio Codec":
+                        matches = val in acodec
+                    elif attr == "Resolution":
+                        matches = val in res
+                    elif "Duration" in attr:
+                        try:
+                            thresh = float(val)
+                            matches = dur > thresh if ">" in attr else dur < thresh
+                        except ValueError:
+                            pass
+                    elif "Size" in attr:
+                        try:
+                            thresh = float(val)
+                            matches = size_mb > thresh if ">" in attr else size_mb < thresh
+                        except ValueError:
+                            pass
+                    elif "Bitrate" in attr:
+                        try:
+                            thresh = float(val)
+                            matches = bitrate_kbps > thresh if ">" in attr else bitrate_kbps < thresh
+                        except ValueError:
+                            pass
+
+                    # Keep vs remove action
+                    if action_keep and not matches:
+                        rows_to_remove.append(row)
+                    elif not action_keep and matches:
+                        rows_to_remove.append(row)
+
+            # Perform removals in reverse order
+            for r in sorted(set(rows_to_remove), reverse=True):
+                table.removeRow(r)
+                if r < len(self.queue_items):
+                    del self.queue_items[r]
+
+            self._renumber_queue()
+            self.ui.lblItemCount.setText(f"{len(self.queue_items)} items")
+            dlg.accept()
+
+        dlg.btnApplyFilter.clicked.connect(on_apply)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def open_frame_preview_dialog(self, row_idx: int = -1):
+        """Extracts and inspects a high-resolution preview frame/thumbnail from the selected file."""
+        if row_idx < 0:
+            row_idx = self.ui.tableQueue.currentRow()
+        if row_idx < 0 or row_idx >= len(self.queue_items):
+            if self.queue_items:
+                row_idx = 0
+            else:
+                QMessageBox.information(self, "No Item", "Please select a media file from the queue.")
+                return
+
+        item = self.queue_items[row_idx]
+        file_path = item["path"]
+        meta = item.get("meta", {})
+        dur = meta.get("duration", 0.0)
+
+        # Seek to 15% of duration or 2s in for representative thumbnail
+        seek_time = max(1.0, min(10.0, dur * 0.15)) if dur > 2.0 else 0.5
+        ffmpeg_bin = get_binary_path("ffmpeg")
+        tmp_img = os.path.join("/tmp", f"ffbatch_preview_{os.getpid()}.jpg")
+
+        cmd = [
+            ffmpeg_bin, "-y",
+            "-ss", str(seek_time),
+            "-i", file_path,
+            "-frames:v", "1",
+            "-q:v", "2",
+            tmp_img
+        ]
+        try:
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        except Exception:
+            pass
+
+        dlg = load_ui_widget("ui/frame_preview_dialog.ui", self)
+        dlg.lblFrameInfo.setText(f"File: {os.path.basename(file_path)} | Timestamp: {seek_time:.2f}s | Resolution: {meta.get('resolution', 'N/A')}")
+
+        pixmap = QPixmap(tmp_img) if os.path.exists(tmp_img) else QPixmap()
+        if not pixmap.isNull():
+            # Scale preview cleanly maintaining aspect ratio
+            scaled = pixmap.scaled(680, 420, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            dlg.lblImageDisplay.setPixmap(scaled)
+        else:
+            dlg.lblImageDisplay.setText("Could not extract video frame preview (Audio-only or invalid stream).")
+
+        def on_copy():
+            if not pixmap.isNull():
+                QApplication.clipboard().setPixmap(pixmap)
+                QMessageBox.information(dlg, "Copied", "Frame copied to clipboard.")
+
+        def on_save():
+            if pixmap.isNull():
+                return
+            save_path, _ = QFileDialog.getSaveFileName(dlg, "Save Preview Frame", f"{os.path.splitext(os.path.basename(file_path))[0]}_frame.png", "Images (*.png *.jpg)")
+            if save_path:
+                pixmap.save(save_path)
+                QMessageBox.information(dlg, "Saved", f"Preview frame saved to:\n{save_path}")
+
+        dlg.btnCopyClipboard.clicked.connect(on_copy)
+        dlg.btnSaveImage.clicked.connect(on_save)
+        dlg.btnClose.clicked.connect(dlg.accept)
+        dlg.exec()
+
+        if os.path.exists(tmp_img):
+            try:
+                os.remove(tmp_img)
+            except Exception:
+                pass
+
+    # Phase 2: Batch Execution Hooks, Automation & Scheduling
+    def open_delay_timer_dialog(self):
+        """Allows scheduling batch queue execution for a future time or countdown."""
+        dlg = load_ui_widget("ui/delay_timer_dialog.ui", self)
+        dlg.timeTarget.setTime(QTime.currentTime().addSecs(1800))
+
+        def on_arm():
+            if dlg.radCountdown.isChecked():
+                h = dlg.spinHours.value()
+                m = dlg.spinMinutes.value()
+                total_secs = (h * 3600) + (m * 60)
+                if total_secs <= 0:
+                    QMessageBox.warning(dlg, "Invalid Time", "Please specify a delay greater than 0.")
+                    return
+                self.delay_seconds_left = total_secs
+            else:
+                target_time = dlg.timeTarget.time()
+                cur_time = QTime.currentTime()
+                diff_secs = cur_time.secsTo(target_time)
+                if diff_secs <= 0:
+                    diff_secs += 24 * 3600  # Scheduled for next day
+                self.delay_seconds_left = diff_secs
+
+            self.delay_timer.start()
+            self.ui.txtLog.appendPlainText(f">>> Delayed start scheduled: Queue starts in {self.delay_seconds_left} seconds ({self.delay_seconds_left // 60} mins).")
+            self.statusBar().showMessage(f"Scheduled delayed start in {self.delay_seconds_left}s", 5000)
+            dlg.accept()
+
+        dlg.btnStartSchedule.clicked.connect(on_arm)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def _on_delay_schedule_tick(self):
+        if self.delay_seconds_left > 0:
+            self.delay_seconds_left -= 1
+            if self.delay_seconds_left % 60 == 0 or self.delay_seconds_left <= 10:
+                self.statusBar().showMessage(f"Queue starting in {self.delay_seconds_left} seconds...", 2000)
+        else:
+            self.delay_timer.stop()
+            self.statusBar().showMessage("Delayed start triggering now!", 3000)
+            self.ui.txtLog.appendPlainText(">>> Schedule timer elapsed. Starting queue execution now...")
+            self.start_processing()
+
+    def open_post_process_dialog(self):
+        """Configure per-file and queue completion shell command hooks."""
+        dlg = load_ui_widget("ui/post_process_dialog.ui", self)
+        cfg = get_config()
+
+        dlg.chkRunPerFile.setChecked(cfg.get("hook_per_file_enabled", False))
+        dlg.txtPerFileCmd.setText(cfg.get("hook_per_file_cmd", ""))
+        dlg.chkRunOnComplete.setChecked(cfg.get("hook_on_complete_enabled", False))
+        dlg.txtOnCompleteCmd.setText(cfg.get("hook_on_complete_cmd", ""))
+
+        def on_save():
+            cfg["hook_per_file_enabled"] = dlg.chkRunPerFile.isChecked()
+            cfg["hook_per_file_cmd"] = dlg.txtPerFileCmd.text().strip()
+            cfg["hook_on_complete_enabled"] = dlg.chkRunOnComplete.isChecked()
+            cfg["hook_on_complete_cmd"] = dlg.txtOnCompleteCmd.text().strip()
+            save_config(cfg)
+            QMessageBox.information(dlg, "Saved", "Post-processing hook configuration saved.")
+            dlg.accept()
+
+        dlg.btnSaveHooks.clicked.connect(on_save)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def open_battery_power_dialog(self):
+        """Configure Linux power/battery protection rules."""
+        dlg = load_ui_widget("ui/battery_power_dialog.ui", self)
+        cfg = get_config()
+
+        on_ac, batt_pct = get_power_status()
+        state_str = "AC Mains" if on_ac else "Battery"
+        dlg.lblCurrentState.setText(f"Power Source: {state_str} | Battery: {batt_pct}%")
+
+        dlg.chkPauseOnBattery.setChecked(cfg.get("power_pause_battery", False))
+        dlg.chkThreshold.setChecked(cfg.get("power_threshold_enabled", False))
+        dlg.spinBatteryThreshold.setValue(cfg.get("power_threshold_pct", 25))
+        dlg.chkResumeOnAC.setChecked(cfg.get("power_resume_ac", True))
+
+        def on_save():
+            cfg["power_pause_battery"] = dlg.chkPauseOnBattery.isChecked()
+            cfg["power_threshold_enabled"] = dlg.chkThreshold.isChecked()
+            cfg["power_threshold_pct"] = dlg.spinBatteryThreshold.value()
+            cfg["power_resume_ac"] = dlg.chkResumeOnAC.isChecked()
+            save_config(cfg)
+            QMessageBox.information(dlg, "Saved", "Power management settings saved.")
+            dlg.accept()
+
+        dlg.btnSavePower.clicked.connect(on_save)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def _on_power_check_tick(self):
+        """Monitors system power status periodically during active queue processing."""
+        if not self.active_tasks:
+            return
+
+        cfg = get_config()
+        pause_on_batt = cfg.get("power_pause_battery", False)
+        if not pause_on_batt:
+            return
+
+        on_ac, batt_pct = get_power_status()
+        thresh_enabled = cfg.get("power_threshold_enabled", False)
+        thresh_pct = cfg.get("power_threshold_pct", 25)
+        resume_on_ac = cfg.get("power_resume_ac", True)
+
+        should_pause = False
+        if not on_ac:
+            if thresh_enabled:
+                if batt_pct < thresh_pct:
+                    should_pause = True
+            else:
+                should_pause = True
+
+        if should_pause and not self.is_paused:
+            self.ui.txtLog.appendPlainText(f"⚠ Power Alert: Running on battery ({batt_pct}%). Pausing active queue...")
+            self.on_toggle_pause()
+            self.auto_paused_by_power = True
+        elif on_ac and self.is_paused and self.auto_paused_by_power and resume_on_ac:
+            self.ui.txtLog.appendPlainText(f">>> AC Power Restored (Battery: {batt_pct}%). Auto-resuming queue...")
+            self.on_toggle_pause()
+            self.auto_paused_by_power = False
+
+    # Phase 3: Advanced Batch Muxing & Intro/Outro Stitching
+    def open_batch_concat_dialog(self):
+        """Batch prepend intro and append outro to all files in queue."""
+        if not self.queue_items:
+            QMessageBox.information(self, "Queue Empty", "Please add files to the batch queue first.")
+            return
+
+        dlg = load_ui_widget("ui/batch_concat_dialog.ui", self)
+        dlg.progStitch.setValue(0)
+
+        def on_browse_intro():
+            path, _ = QFileDialog.getOpenFileName(dlg, "Select Intro Video File", "", "Videos (*.mp4 *.mkv *.avi *.mov *.webm);;All Files (*)")
+            if path:
+                dlg.txtIntroFile.setText(path)
+
+        def on_browse_outro():
+            path, _ = QFileDialog.getOpenFileName(dlg, "Select Outro Video File", "", "Videos (*.mp4 *.mkv *.avi *.mov *.webm);;All Files (*)")
+            if path:
+                dlg.txtOutroFile.setText(path)
+
+        def on_start():
+            intro = dlg.txtIntroFile.text().strip()
+            outro = dlg.txtOutroFile.text().strip()
+            if not intro and not outro:
+                QMessageBox.warning(dlg, "Missing Clips", "Please specify at least an Intro or an Outro file.")
+                return
+
+            stream_copy = dlg.chkStreamCopy.isChecked()
+            dlg.btnStartStitch.setEnabled(False)
+            total = len(self.queue_items)
+
+            success_cnt = 0
+            for i, item in enumerate(self.queue_items):
+                src = item["path"]
+                dir_name, base_name = os.path.split(src)
+                root, ext = os.path.splitext(base_name)
+                out_stitched = os.path.join(dir_name, f"{root}_stitched{ext}")
+
+                ok, msg = stitch_file_with_intro_outro(src, intro, outro, out_stitched, stream_copy=stream_copy)
+                if ok:
+                    success_cnt += 1
+                    self.ui.txtLog.appendPlainText(f">>> Stitched: {base_name} -> {os.path.basename(out_stitched)}")
+                else:
+                    self.ui.txtLog.appendPlainText(f"⚠ Stitch error on {base_name}: {msg}")
+
+                pct = int(((i + 1) / total) * 100)
+                dlg.progStitch.setValue(pct)
+                QApplication.processEvents()
+
+            dlg.btnStartStitch.setEnabled(True)
+            QMessageBox.information(dlg, "Batch Stitching Complete", f"Processed {total} items ({success_cnt} succeeded).")
+            dlg.accept()
+
+        dlg.btnBrowseIntro.clicked.connect(on_browse_intro)
+        dlg.btnBrowseOutro.clicked.connect(on_browse_outro)
+        dlg.btnStartStitch.clicked.connect(on_start)
+        dlg.btnClose.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def open_stream_matrix_dialog(self):
+        """Interactive stream routing matrix with per-track default/forced flags and lang tagging."""
+        selected_row = self.ui.tableQueue.currentRow()
+        if selected_row < 0 or selected_row >= len(self.queue_items):
+            if self.queue_items:
+                selected_row = 0
+            else:
+                QMessageBox.information(self, "No Item", "Please select a media file from the queue.")
+                return
+
+        item = self.queue_items[selected_row]
+        file_path = item["path"]
+
+        ffprobe_bin = get_binary_path("ffprobe")
+        cmd = [
+            ffprobe_bin, "-v", "quiet",
+            "-print_format", "json",
+            "-show_streams",
+            file_path
+        ]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            streams_data = json.loads(res.stdout).get("streams", [])
+        except Exception as e:
+            QMessageBox.warning(self, "Probe Error", f"Could not inspect streams:\n{e}")
+            return
+
+        dlg = load_ui_widget("ui/stream_matrix_dialog.ui", self)
+        table = dlg.tableStreams
+        table.setRowCount(0)
+
+        for s in streams_data:
+            idx = s.get("index", 0)
+            st_type = s.get("codec_type", "unknown")
+            codec = s.get("codec_name", "")
+            tags = s.get("tags", {})
+            lang = tags.get("language", "und")
+            disposition = s.get("disposition", {})
+            is_def = disposition.get("default", 0) == 1
+            is_forced = disposition.get("forced", 0) == 1
+
+            details = ""
+            if st_type == "video":
+                w, h = s.get("width"), s.get("height")
+                details = f"{w}x{h}" if w and h else ""
+            elif st_type == "audio":
+                ch = s.get("channels", 2)
+                sr = s.get("sample_rate", "")
+                details = f"{ch}ch, {sr}Hz"
+            elif st_type == "subtitle":
+                details = tags.get("title", "Subtitle Track")
+
+            row = table.rowCount()
+            table.insertRow(row)
+
+            # Map Checkbox
+            chk = QTableWidgetItem()
+            chk.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            chk.setCheckState(Qt.Checked)
+            table.setItem(row, 0, chk)
+
+            table.setItem(row, 1, QTableWidgetItem(str(idx)))
+            table.setItem(row, 2, QTableWidgetItem(st_type))
+            table.setItem(row, 3, QTableWidgetItem(codec))
+            table.setItem(row, 4, QTableWidgetItem(details))
+            table.setItem(row, 5, QTableWidgetItem(lang))
+
+            # Default flag
+            chk_d = QTableWidgetItem()
+            chk_d.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            chk_d.setCheckState(Qt.Checked if is_def else Qt.Unchecked)
+            table.setItem(row, 6, chk_d)
+
+            # Forced flag
+            chk_f = QTableWidgetItem()
+            chk_f.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            chk_f.setCheckState(Qt.Checked if is_forced else Qt.Unchecked)
+            table.setItem(row, 7, chk_f)
+
+        def update_preview_args():
+            args = []
+            for r in range(table.rowCount()):
+                if table.item(r, 0).checkState() == Qt.Checked:
+                    st_idx = table.item(r, 1).text()
+                    args.append(f"-map 0:{st_idx}")
+                    lang = table.item(r, 5).text().strip()
+                    if lang and lang != "und":
+                        args.append(f"-metadata:s:{st_idx} language={lang}")
+                    if table.item(r, 6).checkState() == Qt.Checked:
+                        args.append(f"-disposition:{st_idx} default")
+                    if table.item(r, 7).checkState() == Qt.Checked:
+                        args.append(f"-disposition:{st_idx} forced")
+            dlg.txtGeneratedArgs.setText(" ".join(args))
+
+        update_preview_args()
+        table.itemChanged.connect(lambda item: update_preview_args())
+
+        def on_map_all():
+            for r in range(table.rowCount()):
+                table.item(r, 0).setCheckState(Qt.Checked)
+            update_preview_args()
+
+        def on_reset():
+            for r in range(table.rowCount()):
+                table.item(r, 0).setCheckState(Qt.Checked)
+                table.item(r, 6).setCheckState(Qt.Unchecked)
+                table.item(r, 7).setCheckState(Qt.Unchecked)
+            update_preview_args()
+
+        def on_apply():
+            gen_args = dlg.txtGeneratedArgs.text().strip()
+            if gen_args:
+                cur = self.ui.txtParameters.text().strip()
+                if cur:
+                    self.ui.txtParameters.setText(f"{cur} {gen_args}")
+                else:
+                    self.ui.txtParameters.setText(gen_args)
+                QMessageBox.information(dlg, "Applied", f"Stream routing arguments added to Parameters:\n{gen_args}")
+            dlg.accept()
+
+        dlg.btnMapAll.clicked.connect(on_map_all)
+        dlg.btnReset.clicked.connect(on_reset)
+        dlg.btnApplyArgs.clicked.connect(on_apply)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def open_output_path_dialog(self):
+        """Configure directory hierarchy replication and dynamic file naming."""
+        dlg = load_ui_widget("ui/output_path_dialog.ui", self)
+        cfg = get_config()
+
+        dlg.chkReplicateTree.setChecked(cfg.get("replicate_tree", False))
+        dlg.txtNamingPattern.setText(cfg.get("output_naming_pattern", "{name}_converted.{ext}"))
+        if self.ui.radCustomFolder.isChecked():
+            dlg.radCustomFolder.setChecked(True)
+        else:
+            dlg.radSameAsSource.setChecked(True)
+        dlg.txtBaseOutputDir.setText(self.ui.txtOutputDir.text().strip())
+
+        def on_browse():
+            d = QFileDialog.getExistingDirectory(dlg, "Select Output Directory")
+            if d:
+                dlg.txtBaseOutputDir.setText(d)
+                update_live_preview()
+
+        def update_live_preview():
+            pattern = dlg.txtNamingPattern.text().strip() or "{name}_converted.{ext}"
+            preview_filename = pattern.replace("{name}", "sample_video").replace("{ext}", "mp4")
+            if dlg.radCustomFolder.isChecked() and dlg.txtBaseOutputDir.text().strip():
+                base = dlg.txtBaseOutputDir.text().strip()
+                if dlg.chkReplicateTree.isChecked():
+                    dlg.lblLivePreview.setText(f"Preview: {os.path.join(base, 'Season 1', preview_filename)}")
+                else:
+                    dlg.lblLivePreview.setText(f"Preview: {os.path.join(base, preview_filename)}")
+            else:
+                dlg.lblLivePreview.setText(f"Preview: /source/dir/{preview_filename}")
+
+        dlg.radSameAsSource.toggled.connect(lambda: update_live_preview())
+        dlg.radCustomFolder.toggled.connect(lambda: update_live_preview())
+        dlg.chkReplicateTree.toggled.connect(lambda: update_live_preview())
+        dlg.txtNamingPattern.textChanged.connect(lambda _: update_live_preview())
+        dlg.btnBrowseDir.clicked.connect(on_browse)
+        update_live_preview()
+
+        def on_apply():
+            cfg["replicate_tree"] = dlg.chkReplicateTree.isChecked()
+            cfg["output_naming_pattern"] = dlg.txtNamingPattern.text().strip()
+            save_config(cfg)
+            if dlg.radCustomFolder.isChecked():
+                self.ui.radCustomFolder.setChecked(True)
+                self.ui.txtOutputDir.setText(dlg.txtBaseOutputDir.text().strip())
+            else:
+                self.ui.radSameFolder.setChecked(True)
+            QMessageBox.information(dlg, "Saved", "Output path hierarchy configuration applied.")
+            dlg.accept()
+
+        dlg.btnApplyPath.clicked.connect(on_apply)
+        dlg.btnCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    # Phase 4: Remote Presets & Interactive Task Wizard
+    def open_online_presets_dialog(self):
+        """Browse, search, and import remote/community presets."""
+        dlg = load_ui_widget("ui/online_presets_dialog.ui", self)
+        table = dlg.tableOnlinePresets
+        table.horizontalHeader().setStretchLastSection(True)
+
+        # Extended community repository presets
+        online_presets_repo = [
+            {"name": "AV1 10-bit High Quality", "cat": "Next-Gen", "ext": "mkv", "args": "-c:v libsvtav1 -preset 5 -crf 26 -pix_fmt yuv420p10le -c:a libopus -b:a 128k"},
+            {"name": "AV1 Ultra Fast Archival", "cat": "Next-Gen", "ext": "mp4", "args": "-c:v libsvtav1 -preset 8 -crf 30 -c:a aac -b:a 128k"},
+            {"name": "HEVC NVENC GPU Acceleration", "cat": "Hardware", "ext": "mp4", "args": "-c:v hevc_nvenc -preset p5 -rc vbr -cq 24 -c:a aac -b:a 160k"},
+            {"name": "H264 VAAPI Intel/AMD GPU", "cat": "Hardware", "ext": "mp4", "args": "-vaapi_device /dev/dri/renderD128 -vf format=nv12,hwupload -c:v h264_vaapi -qp 23 -c:a aac"},
+            {"name": "Discord 25MB Shrink", "cat": "Web & Social", "ext": "mp4", "args": "-c:v libx264 -crf 28 -preset fast -vf scale=-2:720 -c:a aac -b:a 96k"},
+            {"name": "YouTube 4K Ultra", "cat": "Web & Social", "ext": "mp4", "args": "-c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -c:a aac -b:a 320k"},
+            {"name": "ProRes 422 HQ Master", "cat": "Professional", "ext": "mov", "args": "-c:v prores_ks -profile:v 3 -vendor apl0 -pix_fmt yuv422p10le -c:a pcm_s24le"},
+            {"name": "DNxHD Broadcast 1080p", "cat": "Professional", "ext": "mov", "args": "-c:v dnxhd -profile:v dnxhr_hq -pix_fmt yuv422p -c:a pcm_s16le"},
+            {"name": "Audiobook M4B / AAC 64k", "cat": "Audio", "ext": "m4b", "args": "-vn -c:a aac -b:a 64k"},
+            {"name": "FLAC Lossless Audio Extract", "cat": "Audio", "ext": "flac", "args": "-vn -c:a flac"}
+        ]
+
+        cats = sorted(set(p["cat"] for p in online_presets_repo))
+        for c in cats:
+            dlg.comboCategoryFilter.addItem(c)
+
+        def populate_table(filter_text="", cat_filter="All Categories"):
+            table.setRowCount(0)
+            flt = filter_text.strip().lower()
+            for p in online_presets_repo:
+                if cat_filter != "All Categories" and p["cat"] != cat_filter:
+                    continue
+                if flt and (flt not in p["name"].lower() and flt not in p["args"].lower() and flt not in p["cat"].lower()):
+                    continue
+                r = table.rowCount()
+                table.insertRow(r)
+                table.setItem(r, 0, QTableWidgetItem(p["name"]))
+                table.setItem(r, 1, QTableWidgetItem(p["cat"]))
+                table.setItem(r, 2, QTableWidgetItem(p["ext"]))
+                table.setItem(r, 3, QTableWidgetItem(p["args"]))
+
+        populate_table()
+
+        def on_selection_changed():
+            sel = table.selectedIndexes()
+            if sel:
+                row = sel[0].row()
+                dlg.txtPresetArgsPreview.setText(table.item(row, 3).text())
+
+        table.itemSelectionChanged.connect(on_selection_changed)
+        dlg.txtSearchPreset.textChanged.connect(lambda txt: populate_table(txt, dlg.comboCategoryFilter.currentText()))
+        dlg.comboCategoryFilter.currentIndexChanged.connect(lambda _: populate_table(dlg.txtSearchPreset.text(), dlg.comboCategoryFilter.currentText()))
+        dlg.btnRefreshOnline.clicked.connect(lambda: populate_table(dlg.txtSearchPreset.text(), dlg.comboCategoryFilter.currentText()))
+
+        def on_import_local():
+            sel = table.selectedIndexes()
+            if not sel:
+                QMessageBox.information(dlg, "No Selection", "Please select a preset from the table.")
+                return
+            row = sel[0].row()
+            name = table.item(row, 0).text()
+            cat = table.item(row, 1).text()
+            ext = table.item(row, 2).text()
+            args = table.item(row, 3).text()
+
+            self.presets[name] = {"category": cat, "ext": ext, "args": args}
+            save_presets(self.presets)
+            self.refresh_presets_combo()
+            QMessageBox.information(dlg, "Imported", f"Preset '{name}' added to local presets library.")
+
+        def on_load_to_active():
+            sel = table.selectedIndexes()
+            if not sel:
+                QMessageBox.information(dlg, "No Selection", "Please select a preset from the table.")
+                return
+            row = sel[0].row()
+            args = table.item(row, 3).text()
+            ext = table.item(row, 2).text()
+            self.ui.txtParameters.setText(args)
+            idx = self.ui.comboOutputFormat.findText(ext, Qt.MatchFixedString)
+            if idx >= 0:
+                self.ui.comboOutputFormat.setCurrentIndex(idx)
+            QMessageBox.information(dlg, "Loaded", f"Loaded preset parameters into main window.")
+            dlg.accept()
+
+        dlg.btnImportLocal.clicked.connect(on_import_local)
+        dlg.btnLoadToActive.clicked.connect(on_load_to_active)
+        dlg.btnClose.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def open_task_wizard_dialog(self):
+        """Unified 3-step native task wizard (replacing AeroWizard suite)."""
+        dlg = load_ui_widget("ui/task_wizard_dialog.ui", self)
+        stack = dlg.stackedPages
+        stack.setCurrentIndex(0)
+
+        def update_wizard_preview():
+            # Derive parameters from choices
+            crf_val = dlg.sliderCrf.value()
+            dlg.lblCrfValue.setText(f"{crf_val} ({'High Quality' if crf_val < 20 else 'Balanced' if crf_val <= 26 else 'Compressed'})")
+            preset_spd = dlg.comboWizardPreset.currentText().split()[0]
+            abitrate = dlg.comboAudioBitrate.currentText().split()[0]
+
+            if dlg.radStandardVideo.isChecked():
+                args = f"-c:v libx264 -preset {preset_spd} -crf {crf_val} -c:a aac -b:a {abitrate}"
+            elif dlg.radHighEfficiency.isChecked():
+                args = f"-c:v libx265 -preset {preset_spd} -crf {crf_val} -c:a aac -b:a {abitrate}"
+            elif dlg.radAudioExtraction.isChecked():
+                args = f"-vn -c:a libmp3lame -q:a 2"
+            elif dlg.radWebmStreaming.isChecked():
+                args = f"-c:v libvpx-vp9 -crf {crf_val} -b:v 0 -c:a libopus -b:a {abitrate}"
+            elif dlg.radSilenceRemoval.isChecked():
+                args = f"-af silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-50dB"
+            else:
+                args = f"-c:v libx264 -preset {preset_spd} -crf {crf_val} -c:a aac -b:a {abitrate}"
+
+            dlg.txtWizardFinalArgs.setText(args)
+
+        update_wizard_preview()
+        dlg.sliderCrf.valueChanged.connect(lambda _: update_wizard_preview())
+        dlg.comboWizardPreset.currentIndexChanged.connect(lambda _: update_wizard_preview())
+        dlg.comboAudioBitrate.currentIndexChanged.connect(lambda _: update_wizard_preview())
+
+        def on_next():
+            idx = stack.currentIndex()
+            if idx < stack.count() - 1:
+                stack.setCurrentIndex(idx + 1)
+                update_wizard_preview()
+                dlg.btnWizardBack.setEnabled(True)
+                if stack.currentIndex() == stack.count() - 1:
+                    dlg.btnWizardNext.setEnabled(False)
+                    dlg.btnWizardFinish.setEnabled(True)
+
+        def on_back():
+            idx = stack.currentIndex()
+            if idx > 0:
+                stack.setCurrentIndex(idx - 1)
+                dlg.btnWizardNext.setEnabled(True)
+                dlg.btnWizardFinish.setEnabled(False)
+                if stack.currentIndex() == 0:
+                    dlg.btnWizardBack.setEnabled(False)
+
+        def on_finish():
+            final_args = dlg.txtWizardFinalArgs.text().strip()
+            self.ui.txtParameters.setText(final_args)
+            if dlg.radAudioExtraction.isChecked():
+                i = self.ui.comboOutputFormat.findText("mp3", Qt.MatchFixedString)
+                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+            elif dlg.radHighEfficiency.isChecked():
+                i = self.ui.comboOutputFormat.findText("mkv", Qt.MatchFixedString)
+                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+            elif dlg.radWebmStreaming.isChecked():
+                i = self.ui.comboOutputFormat.findText("webm", Qt.MatchFixedString)
+                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+            else:
+                i = self.ui.comboOutputFormat.findText("mp4", Qt.MatchFixedString)
+                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+
+            dlg.accept()
+            if dlg.chkWizardAutoStart.isChecked() and self.queue_items:
+                self.start_processing()
+
+        dlg.btnWizardNext.clicked.connect(on_next)
+        dlg.btnWizardBack.clicked.connect(on_back)
+        dlg.btnWizardFinish.clicked.connect(on_finish)
+        dlg.btnWizardCancel.clicked.connect(dlg.reject)
+        dlg.exec()
+
     def show_about(self):
         QMessageBox.about(
             self,
             "About FFmpeg Batch Native Linux",
             "<b>FFmpeg Batch AV Converter (Linux Native)</b><br><br>"
             "Modern, multi-threaded PySide6 batch converter powered by native Linux FFmpeg.<br>"
-            "Decoupled UI architecture with Qt Designer support."
+            "Decoupled UI architecture with Qt Designer support.<br><br>"
+            "<b>Author:</b> Arean<br>"
+            "<b>Contact:</b> <a href='mailto:arean@synorastudio.in'>arean@synorastudio.in</a>"
         )
 
 if __name__ == "__main__":
@@ -2129,5 +4375,5 @@ if __name__ == "__main__":
     theme_mgr = ThemeManager()
     theme_mgr.apply_current_theme(app)
     window = FFBatchApp()
-    window.show()
+    window.showMaximized()
     sys.exit(app.exec())
