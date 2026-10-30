@@ -6,7 +6,7 @@ thermal thresholds are exceeded, preventing hardware degradation and thermal shu
 """
 import os
 import subprocess
-from typing import Dict, Any, Optional
+from typing import Any
 
 
 class ThermalGuard:
@@ -17,7 +17,7 @@ class ThermalGuard:
         self.resume_temp = resume_temp_celsius
         self.is_throttled = False
 
-    def get_cpu_temp(self) -> Optional[float]:
+    def get_cpu_temp(self) -> float | None:
         """Reads CPU package temperature in Celsius via sysfs or sensors."""
         # 1. Try Linux /sys/class/thermal/
         try:
@@ -28,7 +28,7 @@ class ThermalGuard:
                     if entry.startswith("thermal_zone"):
                         temp_file = os.path.join(thermal_dir, entry, "temp")
                         if os.path.exists(temp_file):
-                            with open(temp_file, "r") as f:
+                            with open(temp_file) as f:
                                 val = float(f.read().strip())
                                 # Usually in millidegrees C
                                 if val > 1000:
@@ -56,7 +56,7 @@ class ThermalGuard:
 
         return None
 
-    def get_gpu_temp(self) -> Optional[float]:
+    def get_gpu_temp(self) -> float | None:
         """Reads GPU temperatures via nvidia-smi or rocm-smi."""
         # 1. NVIDIA
         try:
@@ -90,7 +90,7 @@ class ThermalGuard:
 
         return None
 
-    def check_thermal_status(self) -> Dict[str, Any]:
+    def check_thermal_status(self) -> dict[str, Any]:
         """Evaluates current system temperature against thresholds.
 
         Returns:

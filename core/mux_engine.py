@@ -1,6 +1,6 @@
 """Multi-track audio, video, and subtitle multiplexing engine."""
-import subprocess
 import shlex
+import subprocess
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 

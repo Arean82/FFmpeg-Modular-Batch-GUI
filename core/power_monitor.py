@@ -4,10 +4,9 @@ Reads AC line status and battery charge percentage via /sys/class/power_supply.
 """
 import glob
 import os
-from typing import Tuple
 
 
-def get_power_status() -> Tuple[bool, int]:
+def get_power_status() -> tuple[bool, int]:
     """Returns (is_on_ac: bool, battery_percent: int).
 
     If no battery is detected (e.g. desktop), returns (True, 100).
@@ -27,13 +26,13 @@ def get_power_status() -> Tuple[bool, int]:
         if not os.path.isfile(type_file):
             continue
         try:
-            with open(type_file, "r", encoding="utf-8") as f:
+            with open(type_file, encoding="utf-8") as f:
                 ps_type = f.read().strip().lower()
 
             if ps_type in ("mains", "ac"):
                 online_file = os.path.join(ps, "online")
                 if os.path.isfile(online_file):
-                    with open(online_file, "r", encoding="utf-8") as f:
+                    with open(online_file, encoding="utf-8") as f:
                         online_val = f.read().strip()
                         is_on_ac = (online_val == "1")
 
@@ -41,7 +40,7 @@ def get_power_status() -> Tuple[bool, int]:
                 has_battery = True
                 capacity_file = os.path.join(ps, "capacity")
                 if os.path.isfile(capacity_file):
-                    with open(capacity_file, "r", encoding="utf-8") as f:
+                    with open(capacity_file, encoding="utf-8") as f:
                         cap = int(f.read().strip())
                         battery_capacities.append(cap)
         except Exception:

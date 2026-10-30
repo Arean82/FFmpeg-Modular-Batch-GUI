@@ -2,10 +2,9 @@
 import json
 import re
 import subprocess
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from core.config_manager import get_binary_path
-
 
 LOUDNORM_PRESETS = {
     "YouTube / Spotify Streaming (-14 LUFS)": {
@@ -45,7 +44,7 @@ def build_loudnorm_filter(
     target_i: float = -14.0,
     target_lra: float = 11.0,
     target_tp: float = -1.0,
-    measured_data: Optional[Dict[str, Any]] = None
+    measured_data: dict[str, Any] | None = None
 ) -> str:
     """Builds the FFmpeg -af loudnorm filter string."""
     base = f"loudnorm=I={target_i}:LRA={target_lra}:tp={target_tp}"
@@ -68,7 +67,7 @@ def build_loudnorm_filter(
     return f"-af {base}"
 
 
-def analyze_audio_loudness(file_path: str) -> Tuple[bool, Dict[str, Any], str]:
+def analyze_audio_loudness(file_path: str) -> tuple[bool, dict[str, Any], str]:
     """Runs Pass 1 loudness measurement on the source file."""
     ffmpeg_bin = get_binary_path("ffmpeg")
     cmd = [

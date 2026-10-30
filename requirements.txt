@@ -1,4 +1,5 @@
 # FFmpeg Modular Batch AV Converter Dependencies
 PySide6>=6.5.0
 qt_material>=2.14
-
+pyqtdarktheme>=0.1.7
+ruff>=0.1.0

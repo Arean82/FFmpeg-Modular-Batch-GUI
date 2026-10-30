@@ -4,15 +4,14 @@ Monitors an input directory via Linux kernel inotify (using QFileSystemWatcher),
 detects when new media files finish copying, and automatically dispatches batch jobs.
 """
 import os
-import time
-from typing import Callable, List, Optional
+
 from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Signal
 
 
 class HotFolderWatchdog(QObject):
     file_detected = Signal(str)
 
-    def __init__(self, watch_dir: str = "", parent: Optional[QObject] = None):
+    def __init__(self, watch_dir: str = "", parent: QObject | None = None):
         super().__init__(parent)
         self.watch_dir = watch_dir
         self.watcher = QFileSystemWatcher(self)

@@ -5,15 +5,14 @@ and validates against destination volume available storage.
 """
 import os
 import shutil
-from typing import Dict, List, Tuple
 
 
 def check_disk_space_preflight(
-    queue_items: List[Dict],
+    queue_items: list[dict],
     dest_dir: str,
     custom_dest: bool,
     default_dest: str = ""
-) -> Tuple[bool, str, Dict[str, float]]:
+) -> tuple[bool, str, dict[str, float]]:
     """Checks whether the target volume(s) have sufficient disk space for the queue.
 
     Returns:

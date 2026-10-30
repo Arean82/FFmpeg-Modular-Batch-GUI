@@ -6,7 +6,6 @@ Utilizes standard freedesktop D-Bus APIs (PowerManagement, ScreenSaver, GNOME Se
 with graceful systemd-inhibit fallback.
 """
 import subprocess
-from typing import Optional, List, Tuple
 
 
 class SleepInhibitor:
@@ -15,8 +14,8 @@ class SleepInhibitor:
     def __init__(self, app_name: str = "FFmpeg Modular Batch GUI"):
         self.app_name = app_name
         self.reason = "Encoding media batch queue"
-        self._active_dbus_cookies: List[Tuple[str, str, int]] = []  # (dest, path, cookie)
-        self._proc: Optional[subprocess.Popen] = None
+        self._active_dbus_cookies: list[tuple[str, str, int]] = []  # (dest, path, cookie)
+        self._proc: subprocess.Popen | None = None
         self.is_active = False
 
     def inhibit(self) -> bool:

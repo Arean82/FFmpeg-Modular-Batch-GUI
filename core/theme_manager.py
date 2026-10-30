@@ -6,7 +6,6 @@ Supports 3 100% free, open-source modular theming engines under a unified Light/
 3. Native Clean QSS - Built-in distraction-free light.qss / dark.qss.
 """
 from pathlib import Path
-from typing import Optional, List
 
 from PySide6.QtWidgets import QApplication
 
@@ -67,7 +66,7 @@ class ThemeManager:
             return "light"
         return "dark"
 
-    def get_all_material_themes(self) -> List[str]:
+    def get_all_material_themes(self) -> list[str]:
         """Returns list of all available Material theme files from qt_material."""
         try:
             import qt_material

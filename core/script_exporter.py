@@ -5,11 +5,11 @@ for headless server execution, render farms, or cluster nodes.
 """
 import os
 import shlex
-from typing import List, Dict, Any
+from typing import Any
 
 
 def generate_batch_bash_script(
-    queue_data: List[Dict[str, Any]],
+    queue_data: list[dict[str, Any]],
     output_path: str,
     parallel_jobs: int = 1,
     app_version: str = "2.1.0"

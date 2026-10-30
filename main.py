@@ -1,33 +1,26 @@
 """Main application entry point for native Linux FFmpeg Batch AV Converter."""
+from __future__ import annotations
+
 import json
 import os
 import re
-import sys
-
-# Suppress AT-SPI / dbind accessibility warnings when running under non-root / sudo environments
-os.environ.setdefault("NO_AT_SPI", "1")
-os.environ.setdefault("QT_ACCESSIBILITY", "0")
-# Allow Chromium / QtWebEngine to initialize safely when executing as root or in elevated environments
-os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
-# Avoid portal session registration collisions under non-flatpak environments
-os.environ.setdefault("QT_NO_XDG_DESKTOP_PORTAL", "1")
-
-# Ensure user site-packages are accessible even when launched with sudo / root
-for user_site in [
-    os.path.expanduser("~/.local/lib/python3.14/site-packages"),
-    "/home/arean/.local/lib/python3.14/site-packages",
-    "/home/arean/.local/lib/python3.12/site-packages",
-    "/home/arean/.local/lib/python3.11/site-packages",
-    "/home/arean/.local/lib/python3.10/site-packages",
-]:
-    if os.path.exists(user_site) and user_site not in sys.path:
-        sys.path.insert(0, user_site)
-
 import shlex
 import subprocess
+import sys
 import time
 
-from PySide6.QtCore import QEvent, QFile, QIODevice, QObject, QRunnable, QTime, QTimer, Qt, QThreadPool, QUrl, Signal, Slot
+from PySide6.QtCore import (
+    QEvent,
+    QFile,
+    QIODevice,
+    QRunnable,
+    Qt,
+    QThreadPool,
+    QTime,
+    QTimer,
+    QUrl,
+    Slot,
+)
 from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -49,6 +42,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
+import core.bootstrap  # noqa: F401 - Initialize environment & user site-packages before Qt imports
+
 try:
     from PySide6.QtUiTools import QUiLoader
     HAS_UILOADER = True
@@ -58,29 +53,22 @@ except ImportError:
 from core.concat_engine import join_files, stitch_file_with_intro_outro
 from core.config_manager import get_binary_path, get_config, save_config
 from core.crop_engine import detect_black_bars
+from core.database import db_clear_queue, db_get_last_error, db_load_queue, db_log_job_history, db_save_queue
+from core.disk_preflight import check_disk_space_preflight
 from core.engine import FFmpegTask
 from core.estimations import estimate_size_mb
+from core.gpu_probe import build_hwaccel_args, probe_gpu_encoders
 from core.loudnorm_engine import LOUDNORM_PRESETS, analyze_audio_loudness, build_loudnorm_filter
 from core.mux_engine import MuxJobTask
 from core.power_monitor import get_power_status
-from core.presets import load_presets, save_presets, export_presets_bundle, import_presets_bundle
-from core.database import (
-    init_db,
-    db_save_queue,
-    db_load_queue,
-    db_clear_queue,
-    db_log_job_history,
-    db_get_last_error
-)
+from core.presets import export_presets_bundle, import_presets_bundle, load_presets, save_presets
 from core.probe import probe_file
 from core.readme_viewer import ReadmeViewerDialog
-from core.disk_preflight import check_disk_space_preflight
-from core.gpu_probe import probe_gpu_encoders, build_hwaccel_args
 from core.script_exporter import generate_batch_bash_script
 from core.sleep_inhibitor import SleepInhibitor
-from core.thermal_guard import ThermalGuard
 from core.subs_engine import SubtitleTask
 from core.theme_manager import ThemeManager
+from core.thermal_guard import ThermalGuard
 from core.tokens import substitute_tokens
 from core.url_engine import UrlStreamTask
 
@@ -946,8 +934,10 @@ class FFBatchApp(QMainWindow):
                     w2 = table.cellWidget(r, col)
                     val1 = w1.value() if w1 else 0
                     val2 = w2.value() if w2 else 0
-                    if w1: w1.setValue(val2)
-                    if w2: w2.setValue(val1)
+                    if w1:
+                        w1.setValue(val2)
+                    if w2:
+                        w2.setValue(val1)
                 else:
                     item1 = table.takeItem(r - 1, col)
                     item2 = table.takeItem(r, col)
@@ -973,8 +963,10 @@ class FFBatchApp(QMainWindow):
                     w2 = table.cellWidget(r, col)
                     val1 = w1.value() if w1 else 0
                     val2 = w2.value() if w2 else 0
-                    if w1: w1.setValue(val2)
-                    if w2: w2.setValue(val1)
+                    if w1:
+                        w1.setValue(val2)
+                    if w2:
+                        w2.setValue(val1)
                 else:
                     item1 = table.takeItem(r + 1, col)
                     item2 = table.takeItem(r, col)
@@ -1012,7 +1004,7 @@ class FFBatchApp(QMainWindow):
                         if st_item:
                             st_item.setText(f"HTTP {code}")
                         broken_count += 1
-            except Exception as e:
+            except Exception:
                 # Fallback check for yt-dlp supported streams
                 if st_item:
                     st_item.setText("Offline / Dead")
@@ -1499,7 +1491,6 @@ class FFBatchApp(QMainWindow):
     def on_choose_sub_font(self):
         cur_font_name = self.ui.txtSubFont.text().strip() or "Sans"
         cur_size = self.ui.spinSubFontSize.value()
-        from PySide6.QtGui import QFont
         initial_font = QFont(cur_font_name, cur_size)
         ok, font = QFontDialog.getFont(initial_font, self, "Choose Subtitle Font")
         if ok:
@@ -2090,8 +2081,10 @@ class FFBatchApp(QMainWindow):
                     w2 = table.cellWidget(r, col)
                     val1 = w1.value() if w1 else 0
                     val2 = w2.value() if w2 else 0
-                    if w1: w1.setValue(val2)
-                    if w2: w2.setValue(val1)
+                    if w1:
+                        w1.setValue(val2)
+                    if w2:
+                        w2.setValue(val1)
                 else:
                     item1 = table.takeItem(r - 1, col)
                     item2 = table.takeItem(r, col)
@@ -2118,8 +2111,10 @@ class FFBatchApp(QMainWindow):
                     w2 = table.cellWidget(r, col)
                     val1 = w1.value() if w1 else 0
                     val2 = w2.value() if w2 else 0
-                    if w1: w1.setValue(val2)
-                    if w2: w2.setValue(val1)
+                    if w1:
+                        w1.setValue(val2)
+                    if w2:
+                        w2.setValue(val1)
                 else:
                     item1 = table.takeItem(r + 1, col)
                     item2 = table.takeItem(r, col)
@@ -2339,10 +2334,12 @@ class FFBatchApp(QMainWindow):
 
         # Load Encoding & Hardware settings (Tab 2)
         hw_idx = dialog.comboHwAccel.findText(cfg.get("hw_accel", "Auto (VAAPI / NVENC / QSV)"))
-        if hw_idx >= 0: dialog.comboHwAccel.setCurrentIndex(hw_idx)
+        if hw_idx >= 0:
+            dialog.comboHwAccel.setCurrentIndex(hw_idx)
 
         prio_idx = dialog.comboPriority.findText(cfg.get("process_priority", "Normal"))
-        if prio_idx >= 0: dialog.comboPriority.setCurrentIndex(prio_idx)
+        if prio_idx >= 0:
+            dialog.comboPriority.setCurrentIndex(prio_idx)
 
         dialog.chkPauseOnBattery.setChecked(cfg.get("pause_on_battery", False))
 
@@ -2646,7 +2643,7 @@ class FFBatchApp(QMainWindow):
 
     def open_stream_mapping_dialog(self):
         dialog = load_ui_widget("ui/stream_mapping_dialog.ui", self)
-        
+
         # Populate streams from first queue item if available
         if self.queue_items:
             first_path = self.queue_items[0]["path"]
@@ -2847,8 +2844,8 @@ class FFBatchApp(QMainWindow):
             dialog.btnRunDetection.clicked.connect(run_crop)
 
             def visual_crop():
-                from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QRubberBand, QDialogButtonBox
                 from PySide6.QtCore import QPoint, QRect, QSize
+                from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QRubberBand, QVBoxLayout
 
                 ffmpeg_bin = get_binary_path("ffmpeg")
                 tmp_thumb = os.path.join("/tmp", f"crop_preview_{os.getpid()}_{int(time.time())}.jpg")
@@ -2924,8 +2921,10 @@ class FFBatchApp(QMainWindow):
                 bbox.rejected.connect(crop_win.reject)
                 crop_win.exec()
                 if os.path.exists(tmp_thumb):
-                    try: os.remove(tmp_thumb)
-                    except Exception: pass
+                    try:
+                        os.remove(tmp_thumb)
+                    except Exception:
+                        pass
 
             if hasattr(dialog, "btnInteractiveCrop"):
                 dialog.btnInteractiveCrop.clicked.connect(visual_crop)
@@ -3927,7 +3926,7 @@ class FFBatchApp(QMainWindow):
                 pix = QPixmap(tmp_png)
                 dlg.lblWaveformImage.setPixmap(pix)
             else:
-                dlg.lblWaveformImage.setText(f"Waveform generation failed (no audio stream found)")
+                dlg.lblWaveformImage.setText("Waveform generation failed (no audio stream found)")
 
         render_waveform()
         dlg.btnRegenerate.clicked.connect(render_waveform)
@@ -4088,8 +4087,14 @@ class FFBatchApp(QMainWindow):
     def open_gpu_probe_dialog(self):
         """Probe all hardware GPU encoders and present results with one-click injection."""
         from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QGroupBox, QLineEdit, QDialogButtonBox
+            QDialogButtonBox,
+            QGroupBox,
+            QHBoxLayout,
+            QLabel,
+            QLineEdit,
+            QTreeWidget,
+            QTreeWidgetItem,
+            QVBoxLayout,
         )
 
         dlg = QDialog(self)
@@ -4194,7 +4199,7 @@ class FFBatchApp(QMainWindow):
             if not keyword.strip():
                 dlg.txtFullLog.setPlainText(full_text)
                 return
-            lines = [l for l in full_text.splitlines() if keyword.lower() in l.lower()]
+            lines = [line for line in full_text.splitlines() if keyword.lower() in line.lower()]
             dlg.txtFullLog.setPlainText("\n".join(lines))
 
         dlg.txtLogSearch.textChanged.connect(on_filter_log)
@@ -4371,7 +4376,6 @@ class FFBatchApp(QMainWindow):
             if not self.queue_items:
                 QMessageBox.warning(dlg, "No Target", "Please add files to the queue first.")
                 return
-            target_path = self.queue_items[0]["path"]
             meta = self.queue_items[0].get("meta", {})
             total_sec = meta.get("duration", 0)
             if total_sec <= 0:
@@ -4742,7 +4746,7 @@ class FFBatchApp(QMainWindow):
     # Interactive Video Player Preview (Qt Multimedia)
     def open_video_player_dialog(self, row_idx: int = -1):
         """Full interactive video player with seek, volume, speed, snapshot, and queue navigation."""
-        from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+        from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
         from PySide6.QtMultimediaWidgets import QVideoWidget
 
         if row_idx < 0:
@@ -5397,7 +5401,7 @@ class FFBatchApp(QMainWindow):
             idx = self.ui.comboOutputFormat.findText(ext, Qt.MatchFixedString)
             if idx >= 0:
                 self.ui.comboOutputFormat.setCurrentIndex(idx)
-            QMessageBox.information(dlg, "Loaded", f"Loaded preset parameters into main window.")
+            QMessageBox.information(dlg, "Loaded", "Loaded preset parameters into main window.")
             dlg.accept()
 
         dlg.btnImportLocal.clicked.connect(on_import_local)
@@ -5423,11 +5427,11 @@ class FFBatchApp(QMainWindow):
             elif dlg.radHighEfficiency.isChecked():
                 args = f"-c:v libx265 -preset {preset_spd} -crf {crf_val} -c:a aac -b:a {abitrate}"
             elif dlg.radAudioExtraction.isChecked():
-                args = f"-vn -c:a libmp3lame -q:a 2"
+                args = "-vn -c:a libmp3lame -q:a 2"
             elif dlg.radWebmStreaming.isChecked():
                 args = f"-c:v libvpx-vp9 -crf {crf_val} -b:v 0 -c:a libopus -b:a {abitrate}"
             elif dlg.radSilenceRemoval.isChecked():
-                args = f"-af silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-50dB"
+                args = "-af silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-50dB"
             else:
                 args = f"-c:v libx264 -preset {preset_spd} -crf {crf_val} -c:a aac -b:a {abitrate}"
 
@@ -5462,16 +5466,20 @@ class FFBatchApp(QMainWindow):
             self.ui.txtParameters.setText(final_args)
             if dlg.radAudioExtraction.isChecked():
                 i = self.ui.comboOutputFormat.findText("mp3", Qt.MatchFixedString)
-                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+                if i >= 0:
+                    self.ui.comboOutputFormat.setCurrentIndex(i)
             elif dlg.radHighEfficiency.isChecked():
                 i = self.ui.comboOutputFormat.findText("mkv", Qt.MatchFixedString)
-                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+                if i >= 0:
+                    self.ui.comboOutputFormat.setCurrentIndex(i)
             elif dlg.radWebmStreaming.isChecked():
                 i = self.ui.comboOutputFormat.findText("webm", Qt.MatchFixedString)
-                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+                if i >= 0:
+                    self.ui.comboOutputFormat.setCurrentIndex(i)
             else:
                 i = self.ui.comboOutputFormat.findText("mp4", Qt.MatchFixedString)
-                if i >= 0: self.ui.comboOutputFormat.setCurrentIndex(i)
+                if i >= 0:
+                    self.ui.comboOutputFormat.setCurrentIndex(i)
 
             dlg.accept()
             if dlg.chkWizardAutoStart.isChecked() and self.queue_items:
@@ -5571,7 +5579,7 @@ class FFBatchApp(QMainWindow):
         file_path = item.get("path", "")
         err_info = db_get_last_error(file_path)
 
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QDialogButtonBox
+        from PySide6.QtWidgets import QDialogButtonBox, QLabel, QPlainTextEdit, QVBoxLayout
         dlg = QDialog(self)
         dlg.setWindowTitle("FFmpeg Task Failure Diagnostics")
         dlg.resize(680, 420)
@@ -5611,11 +5619,13 @@ class FFBatchApp(QMainWindow):
 
         def browse_ref():
             f, _ = QFileDialog.getOpenFileName(dlg, "Select Reference Source Video", "", "Videos (*.mp4 *.mkv *.mov *.avi *.webm)")
-            if f: dlg.txtRefFile.setText(f)
+            if f:
+                dlg.txtRefFile.setText(f)
 
         def browse_dist():
             f, _ = QFileDialog.getOpenFileName(dlg, "Select Encoded Distorted Video", "", "Videos (*.mp4 *.mkv *.mov *.avi *.webm)")
-            if f: dlg.txtDistFile.setText(f)
+            if f:
+                dlg.txtDistFile.setText(f)
 
         dlg.btnBrowseRef.clicked.connect(browse_ref)
         dlg.btnBrowseDist.clicked.connect(browse_dist)
@@ -5688,7 +5698,8 @@ class FFBatchApp(QMainWindow):
 
         def browse():
             d = QFileDialog.getExistingDirectory(dlg, "Select Hot Folder to Monitor")
-            if d: dlg.txtWatchDir.setText(d)
+            if d:
+                dlg.txtWatchDir.setText(d)
 
         dlg.btnBrowseWatchDir.clicked.connect(browse)
 
@@ -5719,7 +5730,7 @@ class FFBatchApp(QMainWindow):
 
     def open_gpu_filter_dialog(self):
         """Configure GPU OpenCL / Vulkan hardware filter acceleration."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QComboBox, QLabel, QDialogButtonBox
+        from PySide6.QtWidgets import QComboBox, QDialogButtonBox, QFormLayout, QLabel, QVBoxLayout
         dlg = QDialog(self)
         dlg.setWindowTitle("GPU Filter Acceleration (OpenCL / Vulkan)")
         dlg.resize(500, 260)
@@ -5856,15 +5867,15 @@ class FFBatchApp(QMainWindow):
             added = 0
             if path.endswith(".csv"):
                 import csv
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     reader = csv.reader(f)
-                    header = next(reader, None)
+                    next(reader, None)  # Skip CSV header
                     for row in reader:
                         if len(row) >= 2 and os.path.exists(row[1]):
                             self.add_file_to_queue(row[1])
                             added += 1
             else:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 items = data.get("queue", []) if isinstance(data, dict) else data
                 for it in items:

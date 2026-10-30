@@ -1,6 +1,5 @@
 """Subtitle burning and embedding engine."""
 import subprocess
-import os
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 

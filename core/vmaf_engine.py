@@ -10,7 +10,6 @@ import os
 import re
 import subprocess
 import time
-from typing import Dict, Tuple
 
 from core.config_manager import get_binary_path
 
@@ -19,7 +18,7 @@ def compute_video_quality(
     reference_path: str,
     distorted_path: str,
     metric: str = "ssim"
-) -> Tuple[bool, Dict[str, float], str]:
+) -> tuple[bool, dict[str, float], str]:
     """Runs dual-input comparison filter graph against reference and distorted video.
 
     Returns:
@@ -73,7 +72,7 @@ def compute_video_quality(
         # Parse VMAF json if present
         if os.path.exists(vmaf_json_path):
             try:
-                with open(vmaf_json_path, "r", encoding="utf-8") as f:
+                with open(vmaf_json_path, encoding="utf-8") as f:
                     v_data = json.load(f)
                 v_score = v_data.get("pooled_metrics", {}).get("vmaf", {}).get("mean")
                 if v_score is not None:

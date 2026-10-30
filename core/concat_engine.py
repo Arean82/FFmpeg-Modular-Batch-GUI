@@ -2,7 +2,6 @@
 import os
 import subprocess
 import tempfile
-from typing import Callable, Optional
 
 from core.config_manager import get_binary_path
 
@@ -73,8 +72,8 @@ def join_files(files: list, output_path: str, stream_copy: bool = True) -> tuple
 
 def stitch_file_with_intro_outro(
     src_file: str,
-    intro_file: Optional[str],
-    outro_file: Optional[str],
+    intro_file: str | None,
+    outro_file: str | None,
     output_path: str,
     stream_copy: bool = True
 ) -> tuple[bool, str]:

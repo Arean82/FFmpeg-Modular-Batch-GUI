@@ -9,9 +9,7 @@ Handles:
 import json
 import os
 import sqlite3
-import time
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 DB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ffbatch.db")
 
@@ -80,7 +78,7 @@ def _migrate_legacy_files():
         cursor.execute("SELECT COUNT(*) as cnt FROM presets")
         if cursor.fetchone()["cnt"] == 0 and os.path.exists(presets_json_path):
             try:
-                with open(presets_json_path, "r", encoding="utf-8") as f:
+                with open(presets_json_path, encoding="utf-8") as f:
                     data = json.load(f)
                 for name, item in data.items():
                     cursor.execute("""
@@ -100,7 +98,7 @@ def _migrate_legacy_files():
 
 # --- Queue Persistence Functions ---
 
-def db_save_queue(items: List[Dict[str, Any]]):
+def db_save_queue(items: list[dict[str, Any]]):
     """Saves the current queue snapshot into SQLite."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -119,7 +117,7 @@ def db_save_queue(items: List[Dict[str, Any]]):
         conn.commit()
 
 
-def db_load_queue() -> List[Dict[str, Any]]:
+def db_load_queue() -> list[dict[str, Any]]:
     """Loads pending queue snapshot from SQLite."""
     items = []
     with get_db_connection() as conn:
@@ -160,7 +158,7 @@ def db_log_job_history(file_path: str, output_path: str, params: str, success: b
         conn.commit()
 
 
-def db_get_last_error(file_path: str) -> Optional[Dict[str, Any]]:
+def db_get_last_error(file_path: str) -> dict[str, Any] | None:
     """Retrieves the latest failure trace and params for a specific file."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -178,7 +176,7 @@ def db_get_last_error(file_path: str) -> Optional[Dict[str, Any]]:
 
 # --- Presets Functions ---
 
-def db_get_all_presets() -> Dict[str, Dict[str, Any]]:
+def db_get_all_presets() -> dict[str, dict[str, Any]]:
     """Retrieves all presets as a dictionary matching legacy format."""
     res = {}
     with get_db_connection() as conn:

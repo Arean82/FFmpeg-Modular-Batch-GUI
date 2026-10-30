@@ -1,7 +1,7 @@
 """URL / Stream downloader task using native yt-dlp and FFmpeg."""
-import subprocess
-import shlex
 import os
+import shlex
+import subprocess
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
@@ -98,7 +98,7 @@ class UrlStreamTask(QRunnable):
 
     def _read_cookie_header(self):
         try:
-            with open(self.cookie_file, "r", encoding="utf-8", errors="ignore") as f:
+            with open(self.cookie_file, encoding="utf-8", errors="ignore") as f:
                 cookies = []
                 for line in f:
                     if line.strip() and not line.startswith("#"):

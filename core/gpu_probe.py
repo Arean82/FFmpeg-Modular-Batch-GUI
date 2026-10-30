@@ -9,16 +9,12 @@ Each probe runs a very-short null-sink FFmpeg encode so it completes
 in milliseconds regardless of whether GPU is present.
 """
 
-import os
 import subprocess
-import tempfile
-from typing import Dict, List
 
 from core.config_manager import get_binary_path
 
-
 # Encoders to probe grouped by vendor
-_PROBE_PLAN: Dict[str, List[dict]] = {
+_PROBE_PLAN: dict[str, list[dict]] = {
     "NVIDIA NVENC": [
         {"enc": "h264_nvenc",  "label": "H.264 NVENC",  "preset": "p1"},
         {"enc": "hevc_nvenc",  "label": "H.265 NVENC",  "preset": "p1"},
@@ -77,14 +73,14 @@ def _build_probe_cmd(ffmpeg_bin: str, enc: str, preset: str | None) -> list[str]
     return cmd
 
 
-def probe_gpu_encoders(timeout: float = 5.0) -> Dict[str, List[dict]]:
+def probe_gpu_encoders(timeout: float = 5.0) -> dict[str, list[dict]]:
     """
     Probe available hardware encoders.
 
     Returns a dict mapping vendor_name -> list of {enc, label, available, error}.
     """
     ffmpeg_bin = get_binary_path("ffmpeg")
-    results: Dict[str, List[dict]] = {}
+    results: dict[str, list[dict]] = {}
 
     for vendor, encoders in _PROBE_PLAN.items():
         vendor_results = []
@@ -140,7 +136,7 @@ def build_hwaccel_args(enc: str) -> str:
     return f"-c:v {enc}"
 
 
-def get_available_encoder_args() -> List[dict]:
+def get_available_encoder_args() -> list[dict]:
     """Returns a flat list of available GPU encoders with their FFmpeg args."""
     results = probe_gpu_encoders()
     available = []

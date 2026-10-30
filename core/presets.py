@@ -5,13 +5,11 @@ compatibility and supporting JSON bundle export/import.
 """
 import json
 import os
-from typing import Dict, Any
 
 from core.database import (
-    init_db,
     db_get_all_presets,
     db_save_preset,
-    db_delete_preset,
+    init_db,
 )
 
 PRESET_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "presets.json")
@@ -82,7 +80,7 @@ def import_presets_bundle(file_path: str) -> int:
     if not os.path.exists(file_path):
         return 0
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, dict):
             return 0
