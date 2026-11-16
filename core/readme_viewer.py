@@ -36,7 +36,7 @@ class ReadmeViewerDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Documentation - FFmpeg Modular Batch GUI")
+        self.setWindowTitle("Documentation - Synora FFmpeg Batch Video Converter")
         self.resize(980, 720)
         self.setModal(True)
 

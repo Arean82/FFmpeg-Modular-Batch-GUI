@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Presets Manager - FFmpeg Batch AV Converter</string>
+   <string>Presets Manager - Synora FFmpeg Batch Video Converter</string>
   </property>
   <layout class="QVBoxLayout" name="mainPresetLayout">
    <item>

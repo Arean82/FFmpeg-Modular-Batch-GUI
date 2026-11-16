@@ -1,4 +1,4 @@
-"""Main application entry point for native Linux FFmpeg Batch AV Converter."""
+"""Main application entry point for native Linux Synora FFmpeg Batch Video Converter."""
 from __future__ import annotations
 
 import json
@@ -3548,7 +3548,7 @@ class FFBatchApp(QMainWindow):
                 elif avg_percent >= 100:
                     eta_str = "00:00"
 
-            self.setWindowTitle(f"[{avg_percent}% | ETA: {eta_str}] FFmpeg Batch AV Converter (Linux Native)")
+            self.setWindowTitle(f"[{avg_percent}% | ETA: {eta_str}] Synora FFmpeg Batch Video Converter")
             if hasattr(self.ui, "statusbar") and self.ui.statusbar:
                 self.ui.statusbar.showMessage(f"Queue Progress: {avg_percent}% | Estimated Remaining: {eta_str} | Active Threads: {len(self.active_tasks)}")
 
@@ -3680,7 +3680,7 @@ class FFBatchApp(QMainWindow):
             self.ui.btnSkipCurrent.setEnabled(False)
             self.ui.btnAbortAll.setEnabled(False)
             self.ui.overallProgress.setValue(100)
-            self.setWindowTitle("FFmpeg Batch AV Converter (Linux Native)")
+            self.setWindowTitle("Synora FFmpeg Batch Video Converter")
             self.ui.txtLog.appendPlainText(f">>> Batch Finished! {completed_count}/{len(self.queue_items)} files converted successfully.")
 
             # 1. Play Completion Audio Chime (if enabled in settings)
@@ -3704,8 +3704,8 @@ class FFBatchApp(QMainWindow):
                     notify_cmd = [
                         "notify-send",
                         "-i", icon_path,
-                        "-a", "FFmpeg Batch AV Converter",
-                        "FFmpeg Batch AV Converter",
+                        "-a", "Synora FFmpeg Batch Video Converter",
+                        "Synora FFmpeg Batch Video Converter",
                         msg
                     ]
                     subprocess.Popen(notify_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -3802,7 +3802,7 @@ class FFBatchApp(QMainWindow):
         self.ui.btnStop.setEnabled(False)
         self.ui.btnSkipCurrent.setEnabled(False)
         self.ui.btnAbortAll.setEnabled(False)
-        self.setWindowTitle("FFmpeg Batch AV Converter (Linux Native)")
+        self.setWindowTitle("Synora FFmpeg Batch Video Converter")
         self.ui.txtLog.appendPlainText(">>> Batch Processing Stopped / Aborted by User.")
 
     def start_auto_shutdown_countdown(self):
@@ -5918,8 +5918,8 @@ class FFBatchApp(QMainWindow):
     def show_about(self):
         QMessageBox.about(
             self,
-            "About FFmpeg Batch Native Linux",
-            "<b>FFmpeg Batch AV Converter (Linux Native)</b><br><br>"
+            "About Synora FFmpeg Batch Video Converter",
+            "<b>Synora FFmpeg Batch Video Converter</b><br><br>"
             "Modern, multi-threaded PySide6 batch converter powered by native Linux FFmpeg.<br>"
             "Decoupled UI architecture with Qt Designer support.<br><br>"
             "<b>Author:</b> Arean<br>"
