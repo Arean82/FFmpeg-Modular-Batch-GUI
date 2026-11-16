@@ -21,7 +21,7 @@ from PySide6.QtCore import (
     QUrl,
     Slot,
 )
-from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence, QPixmap, QShortcut, QTextCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -131,8 +131,10 @@ class FFBatchApp(QMainWindow):
         self._queue_persist_file = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "queue_state.json"
         )
-        # Log buffer cap: max lines kept in txtLog (prevents unbounded RAM growth)
+        # In-memory log buffer (preserves full FFmpeg execution history cleanly decoupled from main window)
+        self._log_lines: list[str] = []
         self._log_max_lines = 5000
+        self._processing_dialog = None
 
         # Phase 2: Live Queue Telemetry (Aggregate Throughput & Smoothed ETA)
         self.batch_start_time = None
@@ -833,6 +835,8 @@ class FFBatchApp(QMainWindow):
 
         # Start / Stop
         self.ui.btnStart.clicked.connect(self.start_processing)
+        if hasattr(self.ui, "viewProcessing"):
+            self.ui.viewProcessing.clicked.connect(self.open_processing_log_dialog)
         self.ui.btnStop.clicked.connect(self.stop_processing)
 
     def on_watermark_toggle(self, enabled: bool):
@@ -987,7 +991,7 @@ class FFBatchApp(QMainWindow):
         import urllib.request
         valid_count = 0
         broken_count = 0
-        self.ui.txtLog.appendPlainText(">>> Validating URLs in queue...")
+        self._append_log(">>> Validating URLs in queue...")
 
         for r in range(table.rowCount()):
             url = table.item(r, 1).text().strip()
@@ -1010,7 +1014,7 @@ class FFBatchApp(QMainWindow):
                     st_item.setText("Offline / Dead")
                 broken_count += 1
 
-        self.ui.txtLog.appendPlainText(f">>> Validation complete: {valid_count} valid, {broken_count} broken/offline.")
+        self._append_log(f">>> Validation complete: {valid_count} valid, {broken_count} broken/offline.")
         QMessageBox.information(self, "Validation Complete", f"Validation finished:\n• Valid: {valid_count}\n• Broken / Offline: {broken_count}")
 
     def on_remove_url_errors(self):
@@ -1039,7 +1043,7 @@ class FFBatchApp(QMainWindow):
         if hasattr(self, "active_url_tasks"):
             for t in self.active_url_tasks:
                 if not t.is_cancelled and t.process and t.process.poll() is None:
-                    self.ui.txtLog.appendPlainText(f">>> Skipping active stream: {t.url}")
+                    self._append_log(f">>> Skipping active stream: {t.url}")
                     t.cancel()
                     break
 
@@ -1106,7 +1110,7 @@ class FFBatchApp(QMainWindow):
 
         self.ui.btnStartUrlDownloads.setEnabled(False)
         self.ui.btnSkipActiveUrl.setEnabled(True)
-        self.ui.txtLog.appendPlainText(">>> Starting Batch URL Stream Downloads...")
+        self._append_log(">>> Starting Batch URL Stream Downloads...")
 
         self.active_url_tasks = []
 
@@ -1165,7 +1169,7 @@ class FFBatchApp(QMainWindow):
         if all_done:
             self.ui.btnStartUrlDownloads.setEnabled(True)
             self.ui.btnSkipActiveUrl.setEnabled(False)
-            self.ui.txtLog.appendPlainText(">>> Batch URL Downloads Finished.")
+            self._append_log(">>> Batch URL Downloads Finished.")
     def on_add_mux_job(self):
         dialog = load_ui_widget("ui/add_mux_job_dialog.ui", self)
 
@@ -1354,9 +1358,9 @@ class FFBatchApp(QMainWindow):
             save_path, _ = QFileDialog.getSaveFileName(self, "Save Audio Track", os.path.join(src_dir, f"{base}_track.aac"), "Audio (*.aac *.mp3 *.flac *.m4a *.wav)")
             if save_path:
                 cmd = [ffmpeg_bin, "-y", "-i", src, "-vn", "-c:a", "copy", save_path]
-                self.ui.txtLog.appendPlainText(f">>> Extracting Audio Track: {' '.join(cmd)}")
+                self._append_log(f">>> Extracting Audio Track: {' '.join(cmd)}")
                 res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                self.ui.txtLog.appendPlainText(res.stdout)
+                self._append_log(res.stdout)
                 if res.returncode == 0:
                     QMessageBox.information(self, "Extraction Complete", f"Audio track saved to:\n{save_path}")
                 else:
@@ -1368,9 +1372,9 @@ class FFBatchApp(QMainWindow):
             save_path, _ = QFileDialog.getSaveFileName(self, "Save Subtitle Track", os.path.join(src_dir, f"{base}_track.srt"), "Subtitles (*.srt *.ass *.vtt)")
             if save_path:
                 cmd = [ffmpeg_bin, "-y", "-i", src, "-an", "-vn", "-c:s", "copy", save_path]
-                self.ui.txtLog.appendPlainText(f">>> Extracting Subtitle Track: {' '.join(cmd)}")
+                self._append_log(f">>> Extracting Subtitle Track: {' '.join(cmd)}")
                 res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                self.ui.txtLog.appendPlainText(res.stdout)
+                self._append_log(res.stdout)
                 if res.returncode == 0:
                     QMessageBox.information(self, "Extraction Complete", f"Subtitle track saved to:\n{save_path}")
                 else:
@@ -1427,7 +1431,7 @@ class FFBatchApp(QMainWindow):
             return
 
         self.ui.btnStartMux.setEnabled(False)
-        self.ui.txtLog.appendPlainText(">>> Starting Multiplex Jobs...")
+        self._append_log(">>> Starting Multiplex Jobs...")
 
         # Global overrides from tab controls
         stream_copy_flag = self.ui.chkMuxStreamCopy.isChecked()
@@ -1486,7 +1490,7 @@ class FFBatchApp(QMainWindow):
                 break
         if all_done:
             self.ui.btnStartMux.setEnabled(True)
-            self.ui.txtLog.appendPlainText(">>> All Multiplex Jobs Finished.")
+            self._append_log(">>> All Multiplex Jobs Finished.")
     # Subtitle Processing (Tab 3)
     def on_choose_sub_font(self):
         cur_font_name = self.ui.txtSubFont.text().strip() or "Sans"
@@ -1550,11 +1554,11 @@ class FFBatchApp(QMainWindow):
             "-c:a", "aac",
             preview_out
         ]
-        self.ui.txtLog.appendPlainText(f">>> Generating 10s Subtitle Preview: {' '.join(cmd)}")
+        self._append_log(f">>> Generating 10s Subtitle Preview: {' '.join(cmd)}")
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        self.ui.txtLog.appendPlainText(res.stdout)
+        self._append_log(res.stdout)
         if res.returncode == 0:
-            self.ui.txtLog.appendPlainText(f">>> Subtitle preview generated: {preview_out}")
+            self._append_log(f">>> Subtitle preview generated: {preview_out}")
             # Attempt to launch with default player or mpv/vlc
             subprocess.Popen(["xdg-open", preview_out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             QMessageBox.information(self, "Preview Ready", f"10-second subtitle preview generated successfully:\n{preview_out}")
@@ -1739,7 +1743,7 @@ class FFBatchApp(QMainWindow):
             return
 
         self.ui.btnStartSubs.setEnabled(False)
-        self.ui.txtLog.appendPlainText(">>> Starting Subtitle Processing Jobs...")
+        self._append_log(">>> Starting Subtitle Processing Jobs...")
 
         dest_dir = self.ui.txtSubOutputDir.text().strip()
         fmt_choice = self.ui.comboSubContainerFormat.currentText().strip()
@@ -1796,7 +1800,7 @@ class FFBatchApp(QMainWindow):
                 break
         if all_done:
             self.ui.btnStartSubs.setEnabled(True)
-            self.ui.txtLog.appendPlainText(">>> Subtitle Batch Processing Finished.")
+            self._append_log(">>> Subtitle Batch Processing Finished.")
     def on_dest_toggle(self):
         custom = self.ui.radCustomFolder.isChecked()
         self.ui.txtOutputDir.setEnabled(custom)
@@ -2054,7 +2058,7 @@ class FFBatchApp(QMainWindow):
             if reply == QMessageBox.Yes:
                 for s in pending:
                     self.add_file_to_queue(s["path"])
-                self.ui.txtLog.appendPlainText(f">>> Queue restored: {len(pending)} file(s) recovered from previous session.")
+                self._append_log(f">>> Queue restored: {len(pending)} file(s) recovered from previous session.")
             else:
                 db_clear_queue()
                 if os.path.exists(self._queue_persist_file):
@@ -2141,7 +2145,7 @@ class FFBatchApp(QMainWindow):
             if bar:
                 bar.setValue(0)
         self.ui.overallProgress.setValue(0)
-        self.ui.txtLog.appendPlainText(f">>> Requeued {len(selected_rows)} items back to Pending status.")
+        self._append_log(f">>> Requeued {len(selected_rows)} items back to Pending status.")
 
     def on_increase_font(self):
         if self.current_font_size < 20:
@@ -2282,9 +2286,9 @@ class FFBatchApp(QMainWindow):
         params = self.ui.txtParameters.text().strip()
         cmd = f"ffmpeg -y -i '{src_path}' -t 10 {params} '{test_out}'"
 
-        self.ui.txtLog.appendPlainText(f">>> Running 10-second test encode:\n{cmd}")
+        self._append_log(f">>> Running 10-second test encode:\n{cmd}")
         res = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        self.ui.txtLog.appendPlainText(res.stdout)
+        self._append_log(res.stdout)
         if res.returncode == 0:
             QMessageBox.information(self, "Test Successful", f"Test preview generated successfully:\n{test_out}")
         else:
@@ -2606,7 +2610,7 @@ class FFBatchApp(QMainWindow):
 
             self.ui.btnStart.setEnabled(False)
             self.ui.btnStop.setEnabled(True)
-            self.ui.txtLog.appendPlainText(f">>> Starting Multiple Presets Batch ({len(selected)} presets chosen)...")
+            self._append_log(f">>> Starting Multiple Presets Batch ({len(selected)} presets chosen)...")
 
             dialog.accept()
 
@@ -2687,7 +2691,7 @@ class FFBatchApp(QMainWindow):
                 generated = " ".join(flags)
                 curr = self.ui.txtParameters.text().strip()
                 self.ui.txtParameters.setText(f"{generated} {curr}".strip())
-                self.ui.txtLog.appendPlainText(f">>> Injected Stream Mapping flags: {generated}")
+                self._append_log(f">>> Injected Stream Mapping flags: {generated}")
             dialog.accept()
 
         dialog.streamButtonBox.accepted.connect(apply_mapping)
@@ -3459,7 +3463,7 @@ class FFBatchApp(QMainWindow):
         self.ui.btnStop.setEnabled(True)
         self.ui.btnSkipCurrent.setEnabled(True)
         self.ui.btnAbortAll.setEnabled(True)
-        self.ui.txtLog.appendPlainText(">>> Batch Processing Started...")
+        self._append_log(">>> Batch Processing Started...")
 
         self.active_tasks.clear()
         self.batch_start_time = time.time()
@@ -3467,7 +3471,7 @@ class FFBatchApp(QMainWindow):
         # Inhibit Linux system sleep and screen blanking during active encoding
         if hasattr(self, "sleep_inhibitor"):
             if self.sleep_inhibitor.inhibit():
-                self.ui.txtLog.appendPlainText(">>> Linux power inhibit active: Sleep and screen blanking blocked.")
+                self._append_log(">>> Linux power inhibit active: Sleep and screen blanking blocked.")
                 if hasattr(self, "lbl_power_status"):
                     self.lbl_power_status.setText(" ⚡ Sleep Blocked ")
                     self.lbl_power_status.setStyleSheet(
@@ -3558,27 +3562,30 @@ class FFBatchApp(QMainWindow):
             self._last_thermal_check = now
             status = self.thermal_guard.check_thermal_status()
             if status["should_pause"] and not self.is_paused:
-                self.ui.txtLog.appendPlainText(f"🔥 THERMAL GUARD ALERT: Hardware temperature reached {status['max_observed']:.1f}°C (Threshold: {self.thermal_guard.max_temp}°C). Auto-pausing batch queue to protect hardware...")
+                self._append_log(f"🔥 THERMAL GUARD ALERT: Hardware temperature reached {status['max_observed']:.1f}°C (Threshold: {self.thermal_guard.max_temp}°C). Auto-pausing batch queue to protect hardware...")
                 self.pause_processing()
                 if hasattr(self, "lbl_power_status"):
                     self.lbl_power_status.setText(f" 🔥 Overheat {status['max_observed']:.0f}°C ")
                     self.lbl_power_status.setStyleSheet("QLabel { font-size: 11px; padding: 2px 8px; border-radius: 4px; background-color: #dc2626; color: #ffffff; font-weight: bold; }")
             elif status["should_resume"] and self.is_paused:
-                self.ui.txtLog.appendPlainText(f"❄ THERMAL GUARD: Hardware cooled to {status['max_observed']:.1f}°C. Auto-resuming batch processing...")
+                self._append_log(f"❄ THERMAL GUARD: Hardware cooled to {status['max_observed']:.1f}°C. Auto-resuming batch processing...")
                 self.pause_processing()
 
     def _append_log(self, line: str):
-        """Append a line to txtLog and cap buffer to _log_max_lines to prevent RAM growth."""
-        log_widget = self.ui.txtLog
-        log_widget.appendPlainText(line)
-        doc = log_widget.document()
-        while doc.blockCount() > self._log_max_lines:
-            cursor = log_widget.textCursor()
-            cursor.movePosition(cursor.Start)
-            cursor.select(cursor.LineUnderCursor)
-            cursor.removeSelectedText()
-            cursor.deleteChar()   # delete trailing newline
-        log_widget.moveCursor(log_widget.textCursor().End)
+        """Append a line to in-memory log buffer and live-update the Processing Log window."""
+        if not line:
+            return
+        split_lines = line.splitlines() if chr(10) in line else [line]
+        for log_item in split_lines:
+            self._log_lines.append(log_item)
+            if len(self._log_lines) > self._log_max_lines:
+                self._log_lines.pop(0)
+            if self._processing_dialog and hasattr(self._processing_dialog, "txtLogOutput"):
+                self._processing_dialog.txtLogOutput.appendPlainText(log_item)
+                if hasattr(self._processing_dialog, "chkAutoScroll") and self._processing_dialog.chkAutoScroll.isChecked():
+                    self._processing_dialog.txtLogOutput.moveCursor(QTextCursor.MoveOperation.End)
+                if hasattr(self._processing_dialog, "lblStatus"):
+                    self._processing_dialog.lblStatus.setText(f"Log lines: {len(self._log_lines)}")
 
     def on_task_log(self, line: str):
         self._append_log(line)
@@ -3603,7 +3610,7 @@ class FFBatchApp(QMainWindow):
                         item["_gpu_retried"] = True
                         if status_item:
                             status_item.setText("Retrying with CPU...")
-                        self.ui.txtLog.appendPlainText(f">>> GPU error detected for {os.path.basename(file_path)}. Retrying automatically with CPU fallback...")
+                        self._append_log(f">>> GPU error detected for {os.path.basename(file_path)}. Retrying automatically with CPU fallback...")
                         cpu_params = re.sub(r"-c:v\s+(h264_nvenc|hevc_nvenc|av1_nvenc|h264_vaapi|hevc_vaapi|av1_vaapi|h264_qsv|hevc_qsv|av1_qsv)", "-c:v libx264", item.get("params", ""))
                         if not cpu_params:
                             cpu_params = "-c:v libx264 -crf 23 -c:a aac -b:a 128k"
@@ -3650,7 +3657,7 @@ class FFBatchApp(QMainWindow):
             try:
                 subprocess.Popen(cmd_exec, shell=True)
             except Exception as e:
-                self.ui.txtLog.appendPlainText(f"⚠ Per-file hook error: {e}")
+                self._append_log(f"⚠ Per-file hook error: {e}")
 
         # Check if entire queue has finished
         all_finished = True
@@ -3681,7 +3688,7 @@ class FFBatchApp(QMainWindow):
             self.ui.btnAbortAll.setEnabled(False)
             self.ui.overallProgress.setValue(100)
             self.setWindowTitle("Synora FFmpeg Batch Video Converter")
-            self.ui.txtLog.appendPlainText(f">>> Batch Finished! {completed_count}/{len(self.queue_items)} files converted successfully.")
+            self._append_log(f">>> Batch Finished! {completed_count}/{len(self.queue_items)} files converted successfully.")
 
             # 1. Play Completion Audio Chime (if enabled in settings)
             cfg = get_config()
@@ -3716,20 +3723,20 @@ class FFBatchApp(QMainWindow):
             cfg = get_config()
             if cfg.get("hook_on_complete_enabled") and cfg.get("hook_on_complete_cmd"):
                 cmd_complete = cfg["hook_on_complete_cmd"]
-                self.ui.txtLog.appendPlainText(f">>> Executing queue completion hook: {cmd_complete}")
+                self._append_log(f">>> Executing queue completion hook: {cmd_complete}")
                 try:
                     subprocess.Popen(cmd_complete, shell=True)
                 except Exception as e:
-                    self.ui.txtLog.appendPlainText(f"⚠ Completion hook error: {e}")
+                    self._append_log(f"⚠ Completion hook error: {e}")
 
             if cfg.get("run_script_enabled") and cfg.get("run_script_path"):
                 scr = cfg["run_script_path"]
                 if os.path.isfile(scr) and os.access(scr, os.X_OK):
-                    self.ui.txtLog.appendPlainText(f">>> Executing completion script: {scr}")
+                    self._append_log(f">>> Executing completion script: {scr}")
                     try:
                         subprocess.Popen([scr], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     except Exception as e:
-                        self.ui.txtLog.appendPlainText(f"⚠ Script execution error: {e}")
+                        self._append_log(f"⚠ Script execution error: {e}")
 
             # Check UI auto-shutdown selection
             if hasattr(self.ui, "chkAutoShutdown") and self.ui.chkAutoShutdown.isChecked():
@@ -3737,13 +3744,13 @@ class FFBatchApp(QMainWindow):
             else:
                 action = cfg.get("on_finish_action", "none")
                 if action == "sleep":
-                    self.ui.txtLog.appendPlainText(">>> Triggering computer sleep (systemctl suspend)...")
+                    self._append_log(">>> Triggering computer sleep (systemctl suspend)...")
                     try:
                         subprocess.Popen(["systemctl", "suspend"])
                     except Exception:
                         pass
                 elif action == "shutdown":
-                    self.ui.txtLog.appendPlainText(">>> Triggering computer shutdown (systemctl poweroff)...")
+                    self._append_log(">>> Triggering computer shutdown (systemctl poweroff)...")
                     try:
                         subprocess.Popen(["systemctl", "poweroff"])
                     except Exception:
@@ -3762,7 +3769,7 @@ class FFBatchApp(QMainWindow):
                 )
             for task in self.active_tasks:
                 task.pause()
-            self.ui.txtLog.appendPlainText(">>> Batch processing PAUSED.")
+            self._append_log(">>> Batch processing PAUSED.")
         else:
             self.is_paused = False
             self.ui.btnPause.setText("Pause")
@@ -3775,13 +3782,13 @@ class FFBatchApp(QMainWindow):
                 )
             for task in self.active_tasks:
                 task.resume()
-            self.ui.txtLog.appendPlainText(">>> Batch processing RESUMED.")
+            self._append_log(">>> Batch processing RESUMED.")
 
     def on_skip_current_file(self):
         """Skips the first currently active encoding worker."""
         for task in self.active_tasks:
             if not task.is_cancelled and task.process and task.process.poll() is None:
-                self.ui.txtLog.appendPlainText(f">>> Skipping current file: {os.path.basename(task.file_path)}")
+                self._append_log(f">>> Skipping current file: {os.path.basename(task.file_path)}")
                 task.cancel()
                 break
 
@@ -3803,14 +3810,14 @@ class FFBatchApp(QMainWindow):
         self.ui.btnSkipCurrent.setEnabled(False)
         self.ui.btnAbortAll.setEnabled(False)
         self.setWindowTitle("Synora FFmpeg Batch Video Converter")
-        self.ui.txtLog.appendPlainText(">>> Batch Processing Stopped / Aborted by User.")
+        self._append_log(">>> Batch Processing Stopped / Aborted by User.")
 
     def start_auto_shutdown_countdown(self):
         self.shutdown_seconds_left = 30
         self.ui.btnCancelShutdown.setVisible(True)
         action_name = self.ui.comboShutdownAction.currentText()
         self.ui.btnCancelShutdown.setText(f"Cancel {action_name} ({self.shutdown_seconds_left}s)")
-        self.ui.txtLog.appendPlainText(f">>> Action scheduled: {action_name} in 30 seconds. Press cancel button to abort.")
+        self._append_log(f">>> Action scheduled: {action_name} in 30 seconds. Press cancel button to abort.")
         self.shutdown_timer.start()
 
     def _on_shutdown_tick(self):
@@ -3827,10 +3834,10 @@ class FFBatchApp(QMainWindow):
         self.shutdown_timer.stop()
         self.ui.btnCancelShutdown.setVisible(False)
         self.ui.chkAutoShutdown.setChecked(False)
-        self.ui.txtLog.appendPlainText(">>> Scheduled completion action CANCELLED by user.")
+        self._append_log(">>> Scheduled completion action CANCELLED by user.")
 
     def _execute_shutdown_action(self, action_name: str):
-        self.ui.txtLog.appendPlainText(f">>> Executing action: {action_name}...")
+        self._append_log(f">>> Executing action: {action_name}...")
         if "Shutdown" in action_name:
             subprocess.Popen(["systemctl", "poweroff"])
         elif "Suspend" in action_name or "Sleep" in action_name:
@@ -4040,7 +4047,7 @@ class FFBatchApp(QMainWindow):
                 cmd = build_record_cmd(out_file)
 
                 srv_label = "Wayland/PipeWire" if is_wayland else "X11/x11grab"
-                self.ui.txtLog.appendPlainText(f">>> Launching screen recording ({srv_label}): {' '.join(cmd)}")
+                self._append_log(f">>> Launching screen recording ({srv_label}): {' '.join(cmd)}")
                 try:
                     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     rec_process["proc"] = p
@@ -4178,7 +4185,7 @@ class FFBatchApp(QMainWindow):
                 return
             curr = self.ui.txtParameters.text().strip()
             self.ui.txtParameters.setText(f"{curr} {args}".strip() if curr else args)
-            self.ui.txtLog.appendPlainText(f">>> Injected GPU encoder args: {args}")
+            self._append_log(f">>> Injected GPU encoder args: {args}")
             dlg.accept()
 
         tree.itemClicked.connect(on_item_click)
@@ -4189,24 +4196,66 @@ class FFBatchApp(QMainWindow):
         run_probe()
         dlg.exec()
 
-    # Form16: Full Log File Viewer Dialog
-    def open_log_viewer_dialog(self):
-        dlg = load_ui_widget("ui/log_viewer_dialog.ui", self)
-        full_text = self.ui.txtLog.toPlainText()
-        dlg.txtFullLog.setPlainText(full_text)
+    # Form16: Dedicated Live FFmpeg Process Output & Logs Window
+    def open_processing_log_dialog(self):
+        if self._processing_dialog and self._processing_dialog.isVisible():
+            self._processing_dialog.raise_()
+            self._processing_dialog.activateWindow()
+            return
 
-        def on_filter_log(keyword):
+        dlg = load_ui_widget("ui/processing_log_dialog.ui", self)
+        self._processing_dialog = dlg
+        dlg.setWindowIcon(self.windowIcon())
+
+        full_text = chr(10).join(self._log_lines)
+        dlg.txtLogOutput.setPlainText(full_text)
+        dlg.txtLogOutput.moveCursor(QTextCursor.MoveOperation.End)
+        dlg.lblStatus.setText(f"Log lines: {len(self._log_lines)}")
+
+        def on_filter_text(keyword):
             if not keyword.strip():
-                dlg.txtFullLog.setPlainText(full_text)
+                dlg.txtLogOutput.setPlainText(chr(10).join(self._log_lines))
+                dlg.txtLogOutput.moveCursor(QTextCursor.MoveOperation.End)
+                dlg.lblStatus.setText(f"Log lines: {len(self._log_lines)}")
                 return
-            lines = [line for line in full_text.splitlines() if keyword.lower() in line.lower()]
-            dlg.txtFullLog.setPlainText("\n".join(lines))
+            kw_lower = keyword.lower()
+            filtered = [line_item for line_item in self._log_lines if kw_lower in line_item.lower()]
+            dlg.txtLogOutput.setPlainText(chr(10).join(filtered))
+            dlg.lblStatus.setText(f"Showing {len(filtered)} of {len(self._log_lines)} lines")
 
-        dlg.txtLogSearch.textChanged.connect(on_filter_log)
-        dlg.btnClearLog.clicked.connect(lambda: dlg.txtFullLog.clear())
-        dlg.btnCopyLog.clicked.connect(lambda: QApplication.clipboard().setText(dlg.txtFullLog.toPlainText()))
-        dlg.logButtonBox.rejected.connect(dlg.reject)
-        dlg.exec()
+        def on_clear():
+            self._log_lines.clear()
+            dlg.txtLogOutput.clear()
+            dlg.lblStatus.setText("Log lines: 0")
+
+        def on_copy():
+            QApplication.clipboard().setText(dlg.txtLogOutput.toPlainText())
+
+        def on_save():
+            path, _ = QFileDialog.getSaveFileName(dlg, "Save FFmpeg Log", "ffmpeg_batch_processing.log", "Log Files (*.log);;Text Files (*.txt);;All Files (*)")
+            if path:
+                try:
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(dlg.txtLogOutput.toPlainText())
+                    QMessageBox.information(dlg, "Saved", f"Log successfully saved to: {path}")
+                except Exception as ex:
+                    QMessageBox.warning(dlg, "Error Saving Log", str(ex))
+
+        dlg.txtFilter.textChanged.connect(on_filter_text)
+        dlg.btnClear.clicked.connect(on_clear)
+        dlg.btnCopy.clicked.connect(on_copy)
+        dlg.btnSave.clicked.connect(on_save)
+        dlg.btnClose.clicked.connect(dlg.close)
+
+        def on_dlg_close(event):
+            self._processing_dialog = None
+            event.accept()
+
+        dlg.closeEvent = on_dlg_close
+        dlg.show()
+
+    def open_log_viewer_dialog(self):
+        self.open_processing_log_dialog()
 
     # Form20: Sequential Batch File Renamer
     def open_batch_renamer_dialog(self):
@@ -4257,7 +4306,7 @@ class FFBatchApp(QMainWindow):
                             self.ui.tableQueue.item(r, 1).setText(new_name)
                             renamed_count += 1
                         except Exception as e:
-                            self.ui.txtLog.appendPlainText(f"⚠ Rename failed for {old_path}: {e}")
+                            self._append_log(f"⚠ Rename failed for {old_path}: {e}")
             QMessageBox.information(dlg, "Rename Complete", f"Successfully renamed {renamed_count} files.")
             dlg.accept()
 
@@ -4313,10 +4362,10 @@ class FFBatchApp(QMainWindow):
                 "-reset_timestamps", "1",
                 out_pattern
             ]
-            self.ui.txtLog.appendPlainText(f">>> Running Video Split: {' '.join(cmd)}")
+            self._append_log(f">>> Running Video Split: {' '.join(cmd)}")
             dlg.progSplit.setValue(30)
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            self.ui.txtLog.appendPlainText(res.stdout)
+            self._append_log(res.stdout)
             dlg.progSplit.setValue(100)
             if res.returncode == 0:
                 QMessageBox.information(dlg, "Split Complete", f"Media split successfully into segments:\n{out_pattern}")
@@ -4438,7 +4487,7 @@ class FFBatchApp(QMainWindow):
                 "-c", "copy",
                 out_file
             ]
-            self.ui.txtLog.appendPlainText(f">>> Injecting Chapters: {' '.join(cmd)}")
+            self._append_log(f">>> Injecting Chapters: {' '.join(cmd)}")
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             if os.path.exists(tmp_meta):
                 os.remove(tmp_meta)
@@ -4980,7 +5029,7 @@ class FFBatchApp(QMainWindow):
                 self.delay_seconds_left = diff_secs
 
             self.delay_timer.start()
-            self.ui.txtLog.appendPlainText(f">>> Delayed start scheduled: Queue starts in {self.delay_seconds_left} seconds ({self.delay_seconds_left // 60} mins).")
+            self._append_log(f">>> Delayed start scheduled: Queue starts in {self.delay_seconds_left} seconds ({self.delay_seconds_left // 60} mins).")
             self.statusBar().showMessage(f"Scheduled delayed start in {self.delay_seconds_left}s", 5000)
             dlg.accept()
 
@@ -4996,7 +5045,7 @@ class FFBatchApp(QMainWindow):
         else:
             self.delay_timer.stop()
             self.statusBar().showMessage("Delayed start triggering now!", 3000)
-            self.ui.txtLog.appendPlainText(">>> Schedule timer elapsed. Starting queue execution now...")
+            self._append_log(">>> Schedule timer elapsed. Starting queue execution now...")
             self.start_processing()
 
     def open_post_process_dialog(self):
@@ -5073,11 +5122,11 @@ class FFBatchApp(QMainWindow):
                 should_pause = True
 
         if should_pause and not self.is_paused:
-            self.ui.txtLog.appendPlainText(f"⚠ Power Alert: Running on battery ({batt_pct}%). Pausing active queue...")
+            self._append_log(f"⚠ Power Alert: Running on battery ({batt_pct}%). Pausing active queue...")
             self.on_toggle_pause()
             self.auto_paused_by_power = True
         elif on_ac and self.is_paused and self.auto_paused_by_power and resume_on_ac:
-            self.ui.txtLog.appendPlainText(f">>> AC Power Restored (Battery: {batt_pct}%). Auto-resuming queue...")
+            self._append_log(f">>> AC Power Restored (Battery: {batt_pct}%). Auto-resuming queue...")
             self.on_toggle_pause()
             self.auto_paused_by_power = False
 
@@ -5122,9 +5171,9 @@ class FFBatchApp(QMainWindow):
                 ok, msg = stitch_file_with_intro_outro(src, intro, outro, out_stitched, stream_copy=stream_copy)
                 if ok:
                     success_cnt += 1
-                    self.ui.txtLog.appendPlainText(f">>> Stitched: {base_name} -> {os.path.basename(out_stitched)}")
+                    self._append_log(f">>> Stitched: {base_name} -> {os.path.basename(out_stitched)}")
                 else:
-                    self.ui.txtLog.appendPlainText(f"⚠ Stitch error on {base_name}: {msg}")
+                    self._append_log(f"⚠ Stitch error on {base_name}: {msg}")
 
                 pct = int(((i + 1) / total) * 100)
                 dlg.progStitch.setValue(pct)
@@ -5564,7 +5613,7 @@ class FFBatchApp(QMainWindow):
                     self.ui.txtParameters.setText(f"{curr} {filter_str}")
                 else:
                     self.ui.txtParameters.setText(filter_str)
-                self.ui.txtLog.appendPlainText(f">>> Injected audio loudness normalization filter: {filter_str}")
+                self._append_log(f">>> Injected audio loudness normalization filter: {filter_str}")
             dlg.accept()
 
         dlg.btnApplyFilter.clicked.connect(on_apply)
@@ -5667,7 +5716,7 @@ class FFBatchApp(QMainWindow):
         filter_str = TONEMAP_PRESETS["HDR10 to SDR BT.709 (High Quality Mobius)"]["filter"]
         curr = self.ui.txtParameters.text().strip()
         self.ui.txtParameters.setText(f"{curr} {filter_str}".strip())
-        self.ui.txtLog.appendPlainText(f">>> Injected HDR10 to SDR tone-mapping filter:\n{filter_str}")
+        self._append_log(f">>> Injected HDR10 to SDR tone-mapping filter:\n{filter_str}")
         QMessageBox.information(
             self,
             "Tone-Mapping Filter Injected",
@@ -5677,7 +5726,7 @@ class FFBatchApp(QMainWindow):
 
     def _on_hot_file_detected(self, file_path: str):
         """Called automatically when hot folder watchdog detects a newly copied media file."""
-        self.ui.txtLog.appendPlainText(f">>> [Hot Folder Watchdog] New file detected: {os.path.basename(file_path)}")
+        self._append_log(f">>> [Hot Folder Watchdog] New file detected: {os.path.basename(file_path)}")
         self.add_file_to_queue(file_path)
         if getattr(self, "_hot_folder_auto_start", False):
             if not self.active_tasks:
@@ -5759,7 +5808,7 @@ class FFBatchApp(QMainWindow):
             if flag:
                 curr = self.ui.txtParameters.text().strip()
                 self.ui.txtParameters.setText(f"{flag} {curr}".strip())
-                self.ui.txtLog.appendPlainText(f">>> Injected GPU filter hardware acceleration flags: {flag}")
+                self._append_log(f">>> Injected GPU filter hardware acceleration flags: {flag}")
             dlg.accept()
 
         bbox.accepted.connect(on_apply)
@@ -5802,7 +5851,7 @@ class FFBatchApp(QMainWindow):
         simultaneous = self.ui.spinSimultaneous.value() if hasattr(self.ui, "spinSimultaneous") else 1
         success = generate_batch_bash_script(queue_data, out_path, parallel_jobs=simultaneous)
         if success:
-            self.ui.txtLog.appendPlainText(f">>> Successfully exported queue to executable script: {out_path}")
+            self._append_log(f">>> Successfully exported queue to executable script: {out_path}")
             QMessageBox.information(
                 self,
                 "Bash Script Exported",
@@ -5850,7 +5899,7 @@ class FFBatchApp(QMainWindow):
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
 
-            self.ui.txtLog.appendPlainText(f">>> Queue successfully saved to {path}")
+            self._append_log(f">>> Queue successfully saved to {path}")
             QMessageBox.information(self, "Queue Saved", f"Saved {len(self.queue_items)} queue items to:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Failed to save queue: {e}")
@@ -5884,7 +5933,7 @@ class FFBatchApp(QMainWindow):
                         self.add_file_to_queue(fpath)
                         added += 1
 
-            self.ui.txtLog.appendPlainText(f">>> Loaded {added} items from {path}")
+            self._append_log(f">>> Loaded {added} items from {path}")
             QMessageBox.information(self, "Queue Loaded", f"Successfully imported {added} files into the queue.")
         except Exception as e:
             QMessageBox.critical(self, "Load Error", f"Failed to load queue file: {e}")
@@ -5904,7 +5953,7 @@ class FFBatchApp(QMainWindow):
             # Update desktop database if command is available
             subprocess.run(["update-desktop-database", target_dir], capture_output=True, timeout=2)
 
-            self.ui.txtLog.appendPlainText(f">>> Desktop integration file registered: {desktop_dest}")
+            self._append_log(f">>> Desktop integration file registered: {desktop_dest}")
             QMessageBox.information(
                 self,
                 "Desktop Integration Installed",

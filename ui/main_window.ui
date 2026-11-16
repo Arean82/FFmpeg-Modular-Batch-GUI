@@ -793,6 +793,22 @@
                </widget>
               </item>
               <item>
+               <widget class="QPushButton" name="viewProcessing">
+                <property name="minimumSize">
+                 <size>
+                  <width>150</width>
+                  <height>35</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Open dedicated live FFmpeg processing log viewer</string>
+                </property>
+                <property name="text">
+                 <string>View Process Log</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <spacer name="ctrlSpacer">
                 <property name="orientation">
                  <enum>Qt::Orientation::Horizontal</enum>
@@ -909,22 +925,6 @@
              <widget class="QProgressBar" name="overallProgress">
               <property name="value">
                <number>0</number>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPlainTextEdit" name="txtLog">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>120</height>
-               </size>
-              </property>
-              <property name="readOnly">
-               <bool>true</bool>
-              </property>
-              <property name="placeholderText">
-               <string>FFmpeg process output &amp; logs will appear here...</string>
               </property>
              </widget>
             </item>
