@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QColorDialog,
-    QCompleter,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -194,13 +193,8 @@ class FFBatchApp(QMainWindow):
             cat = data.get("category", "General")
             self.ui.comboPresets.addItem(f"[{cat}] {name}", userData=name)
 
-        # Polish Enhancement 2: Preset Quick-Search Filter (QCompleter)
-        self.ui.comboPresets.setEditable(True)
-        self.ui.comboPresets.setInsertPolicy(self.ui.comboPresets.InsertPolicy.NoInsert)
-        completer = QCompleter(self.ui.comboPresets.model(), self)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        self.ui.comboPresets.setCompleter(completer)
+        # Standard native QComboBox (guarantees instant mouse click selection)
+        self.ui.comboPresets.setEditable(False)
 
         self.ui.comboPresets.blockSignals(False)
         if self.ui.comboPresets.count() > 0:
@@ -773,6 +767,7 @@ class FFBatchApp(QMainWindow):
 
         # Presets combo
         self.ui.comboPresets.currentIndexChanged.connect(self.on_preset_selected)
+        self.ui.comboPresets.activated.connect(self.on_preset_selected)
         self.ui.btnSavePreset.clicked.connect(self.open_presets_dialog)
 
         # Watermark UI controls
@@ -1807,20 +1802,54 @@ class FFBatchApp(QMainWindow):
         self.ui.btnBrowseOutputDir.setEnabled(custom)
 
     def on_preset_selected(self, index):
-        preset_name = self.ui.comboPresets.currentData()
+        idx = index if isinstance(index, int) and index >= 0 else self.ui.comboPresets.currentIndex()
+        preset_name = self.ui.comboPresets.itemData(idx)
+        if not preset_name:
+            cur_text = self.ui.comboPresets.itemText(idx) if idx >= 0 else self.ui.comboPresets.currentText()
+            if "] " in cur_text:
+                preset_name = cur_text.split("] ", 1)[-1].strip()
+            else:
+                preset_name = cur_text.strip()
+
         if preset_name and preset_name in self.presets:
             p = self.presets[preset_name]
-            self.ui.txtParameters.setText(p.get("args", ""))
-            ext = p.get("ext")
+            args_val = p.get("args", "")
+            pre_val = p.get("pre_input", "")
+
+            # Separate any pre-input flags (-ss, -t, -to, -hwaccel, -re, -loop) that may be inside args
+            if not pre_val and args_val:
+                tokens = args_val.split()
+                extracted_pre = []
+                remaining_args = []
+                i = 0
+                while i < len(tokens):
+                    tok = tokens[i]
+                    if tok in ("-ss", "-t", "-to", "-hwaccel", "-re", "-loop", "-r") and i == 0:
+                        extracted_pre.append(tok)
+                        if i + 1 < len(tokens) and not tokens[i + 1].startswith("-"):
+                            extracted_pre.append(tokens[i + 1])
+                            i += 2
+                        else:
+                            i += 1
+                    else:
+                        remaining_args.append(tok)
+                        i += 1
+                if extracted_pre:
+                    pre_val = " ".join(extracted_pre)
+                    args_val = " ".join(remaining_args)
+
+            self.ui.txtParameters.setText(args_val)
+            if hasattr(self.ui, "txtPreInput"):
+                self.ui.txtPreInput.setText(pre_val)
+
+            ext = p.get("ext", "mp4")
             if ext:
-                idx = self.ui.comboOutputFormat.findText(ext)
-                if idx >= 0:
-                    self.ui.comboOutputFormat.setCurrentIndex(idx)
-        else:
-            text = self.ui.comboPresets.currentText()
-            if "(" in text and ")" in text:
-                params = text[text.find("(") + 1 : text.rfind(")")]
-                self.ui.txtParameters.setText(params)
+                ext_clean = ext.strip().lstrip(".")
+                idx_fmt = self.ui.comboOutputFormat.findText(ext_clean, Qt.MatchFixedString)
+                if idx_fmt >= 0:
+                    self.ui.comboOutputFormat.setCurrentIndex(idx_fmt)
+                else:
+                    self.ui.comboOutputFormat.setCurrentText(ext_clean)
         self.update_estimated_sizes()
 
     def update_estimated_sizes(self):
@@ -1975,7 +2004,10 @@ class FFBatchApp(QMainWindow):
             self._save_queue_to_disk()
 
         worker = ProbeWorker(path, row, on_probe_complete)
-        self.threadpool.start(worker)
+        if not hasattr(self, "_probe_threadpool"):
+            self._probe_threadpool = QThreadPool()
+            self._probe_threadpool.setMaxThreadCount(2)
+        self._probe_threadpool.start(worker)
 
     def on_remove_selected(self):
         table = self.ui.tableQueue
@@ -2250,6 +2282,17 @@ class FFBatchApp(QMainWindow):
     def on_open_output_dir(self):
         custom_dest = self.ui.radCustomFolder.isChecked()
         dest_dir = self.ui.txtOutputDir.text().strip()
+        if custom_dest and not dest_dir:
+            reply = QMessageBox.warning(
+                self,
+                "Missing Output Directory",
+                "Custom Folder is selected, but no directory was specified.\n\nDo you want to save to the source files directory instead?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply != QMessageBox.Yes:
+                return
+            custom_dest = False
         target_dir = None
         if custom_dest and dest_dir and os.path.isdir(dest_dir):
             target_dir = dest_dir
@@ -2284,7 +2327,9 @@ class FFBatchApp(QMainWindow):
         test_out = os.path.join(src_dir, f"{base}_preview_10s.{out_ext}")
 
         params = self.ui.txtParameters.text().strip()
-        cmd = f"ffmpeg -y -i '{src_path}' -t 10 {params} '{test_out}'"
+        pre_val = self.ui.txtPreInput.text().strip() if hasattr(self.ui, "txtPreInput") else ""
+        pre_part = f"{pre_val} " if pre_val else ""
+        cmd = f"ffmpeg -y {pre_part}-i '{src_path}' -t 10 {params} '{test_out}'"
 
         self._append_log(f">>> Running 10-second test encode:\n{cmd}")
         res = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -2305,8 +2350,10 @@ class FFBatchApp(QMainWindow):
         out_ext = self.ui.comboOutputFormat.currentText().strip().lstrip(".") or "mp4"
         out_path = f"/path/to/output.{out_ext}"
         params = self.ui.txtParameters.text().strip()
+        pre_val = self.ui.txtPreInput.text().strip() if hasattr(self.ui, "txtPreInput") else ""
+        pre_part = f"{pre_val} " if pre_val else ""
         final_params = substitute_tokens(params, src_path, out_path, item["meta"])
-        full_cmd = f"ffmpeg -i '{src_path}' {final_params} '{out_path}'"
+        full_cmd = f"ffmpeg {pre_part}-i '{src_path}' {final_params} '{out_path}'"
 
         QMessageBox.information(self, "FFmpeg Command Preview", full_cmd)
 
@@ -2465,6 +2512,23 @@ class FFBatchApp(QMainWindow):
 
     def open_presets_dialog(self):
         dialog = load_ui_widget("ui/presets_dialog.ui", self)
+        # Prefill dialog with current main window parameters and pre-input
+        current_args = self.ui.txtParameters.text().strip()
+        current_pre = self.ui.txtPreInput.text().strip() if hasattr(self.ui, "txtPreInput") else ""
+        current_ext = self.ui.comboOutputFormat.currentText().strip().lstrip(".")
+        current_preset = self.ui.comboPresets.currentData() or self.ui.comboPresets.currentText().strip()
+        if "] " in current_preset:
+            current_preset = current_preset.split("] ", 1)[-1]
+
+        # Dynamically populate categories in comboPresetCategory
+        all_cats = set(["General", "Video", "Audio", "Community", "Hardware", "Next-Gen", "Web & Social", "Professional", "GPU", "CPU", "Copy", "Fix", "LowBW"])
+        for pdata in self.presets.values():
+            c = pdata.get("category", "").strip()
+            if c:
+                all_cats.add(c)
+        dialog.comboPresetCategory.clear()
+        for cat_item in sorted(all_cats):
+            dialog.comboPresetCategory.addItem(cat_item)
 
         def refresh_dialog_list():
             dialog.listPresets.clear()
@@ -2481,6 +2545,8 @@ class FFBatchApp(QMainWindow):
             if name in self.presets:
                 p = self.presets[name]
                 dialog.txtPresetTitle.setText(name)
+                if hasattr(dialog, "txtPresetPreInput"):
+                    dialog.txtPresetPreInput.setText(p.get("pre_input", ""))
                 dialog.txtPresetExt.setText(p.get("ext", ""))
                 dialog.txtPresetArgs.setPlainText(p.get("args", ""))
                 cat_idx = dialog.comboPresetCategory.findText(p.get("category", ""))
@@ -2491,8 +2557,10 @@ class FFBatchApp(QMainWindow):
             name = dialog.txtPresetTitle.text().strip()
             if not name:
                 return
+            pre_val = dialog.txtPresetPreInput.text().strip() if hasattr(dialog, "txtPresetPreInput") else ""
             self.presets[name] = {
                 "args": dialog.txtPresetArgs.toPlainText().strip(),
+                "pre_input": pre_val,
                 "ext": dialog.txtPresetExt.text().strip(),
                 "category": dialog.comboPresetCategory.currentText(),
                 "desc": ""
@@ -2505,6 +2573,28 @@ class FFBatchApp(QMainWindow):
             dialog.txtPresetTitle.setText("New Preset")
             dialog.txtPresetExt.setText("mp4")
             dialog.txtPresetArgs.setPlainText("-c:v libx264 -crf 23 -c:a aac -b:a 128k")
+            dialog.txtPresetTitle.setFocus()
+            dialog.txtPresetTitle.selectAll()
+
+        def on_clone():
+            cur = dialog.listPresets.currentItem()
+            source_name = ""
+            if cur:
+                raw_text = cur.text()
+                source_name = raw_text.split("] ", 1)[-1] if "] " in raw_text else raw_text
+            if not source_name:
+                source_name = dialog.txtPresetTitle.text().strip()
+
+            base_clone_name = f"{source_name} (Copy)" if source_name else "New Preset (Copy)"
+            clone_name = base_clone_name
+            counter = 2
+            while clone_name in self.presets:
+                clone_name = f"{source_name} (Copy {counter})"
+                counter += 1
+
+            dialog.txtPresetTitle.setText(clone_name)
+            dialog.txtPresetTitle.setFocus()
+            dialog.txtPresetTitle.selectAll()
 
         def on_delete():
             cur = dialog.listPresets.currentItem()
@@ -2521,9 +2611,29 @@ class FFBatchApp(QMainWindow):
         def on_apply():
             on_save()
             name = dialog.txtPresetTitle.text().strip()
+            if name in self.presets:
+                p = self.presets[name]
+                self.ui.txtParameters.setText(p.get("args", ""))
+                if hasattr(self.ui, "txtPreInput"):
+                    self.ui.txtPreInput.setText(p.get("pre_input", ""))
+                ext = p.get("ext", "").strip().lstrip(".")
+                if ext:
+                    idx_ext = self.ui.comboOutputFormat.findText(ext, Qt.MatchFixedString)
+                    if idx_ext >= 0:
+                        self.ui.comboOutputFormat.setCurrentIndex(idx_ext)
+                    else:
+                        self.ui.comboOutputFormat.setCurrentText(ext)
+
             idx = self.ui.comboPresets.findData(name)
             if idx >= 0:
                 self.ui.comboPresets.setCurrentIndex(idx)
+            else:
+                self.refresh_presets_combo()
+                idx_new = self.ui.comboPresets.findData(name)
+                if idx_new >= 0:
+                    self.ui.comboPresets.setCurrentIndex(idx_new)
+
+            self.update_estimated_sizes()
             dialog.accept()
 
         def on_export_bundle():
@@ -2551,9 +2661,30 @@ class FFBatchApp(QMainWindow):
                     QMessageBox.warning(dialog, "Import Failed", "No valid presets found in the selected file.")
 
         refresh_dialog_list()
+        # Highlight and prefill active preset or edited fields
+        matched = False
+        if current_preset:
+            for r in range(dialog.listPresets.count()):
+                item = dialog.listPresets.item(r)
+                if item and current_preset in item.text():
+                    dialog.listPresets.setCurrentRow(r)
+                    matched = True
+                    break
+        if not matched or current_args:
+            if current_preset:
+                dialog.txtPresetTitle.setText(current_preset)
+            if current_args:
+                dialog.txtPresetArgs.setPlainText(current_args)
+            if hasattr(dialog, "txtPresetPreInput") and current_pre:
+                dialog.txtPresetPreInput.setText(current_pre)
+            if current_ext:
+                dialog.txtPresetExt.setText(current_ext)
+
         dialog.listPresets.itemSelectionChanged.connect(on_item_selected)
         dialog.btnSavePresetItem.clicked.connect(on_save)
         dialog.btnNewPreset.clicked.connect(on_new)
+        if hasattr(dialog, "btnClonePreset"):
+            dialog.btnClonePreset.clicked.connect(on_clone)
         dialog.btnDeletePreset.clicked.connect(on_delete)
         dialog.btnApplyToMain.clicked.connect(on_apply)
         if hasattr(dialog, "btnExportPresets"):
@@ -2608,38 +2739,46 @@ class FFBatchApp(QMainWindow):
             custom_dest = self.ui.radCustomFolder.isChecked()
             dest_dir = self.ui.txtOutputDir.text().strip()
 
-            self.ui.btnStart.setEnabled(False)
-            self.ui.btnStop.setEnabled(True)
-            self._append_log(f">>> Starting Multiple Presets Batch ({len(selected)} presets chosen)...")
-
             dialog.accept()
+            self._append_log(f">>> Queued Multiple Presets Batch ({len(selected)} presets chosen). Ready to start manually.")
 
-            # Schedule jobs for every file x every selected preset
+            # Expand queue items for every selected preset without starting!
+            # Keep everything in Pending status waiting for user to click Start
+            # Get unique source files
+            source_items = list(self.queue_items)
+            # Clear existing queue rows so we can re-populate with distinct (file x preset) jobs
+            self.on_clear_queue()
+
             for _chk, name, pdata in selected:
                 p_args = pdata.get("args", "")
                 p_ext = pdata.get("ext", "mp4")
-                p_folder_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
+                p_pre = pdata.get("pre_input", "")
+                clean_name = "".join(c if (c.isalnum() or c in "_-") else "_" for c in name)
 
-                for item in self.queue_items:
-                    src_path = item["path"]
+                for src_item in source_items:
+                    src_path = src_item["path"]
                     src_dir, src_file = os.path.split(src_path)
                     base, _ = os.path.splitext(src_file)
 
-                    base_folder = dest_dir if (custom_dest and dest_dir and os.path.isdir(dest_dir)) else src_dir
-                    target_folder = os.path.join(base_folder, p_folder_name) if use_subfolders else base_folder
-                    os.makedirs(target_folder, exist_ok=True)
-
-                    suffix = f"_{p_folder_name}" if not use_subfolders else ""
+                    base_folder = dest_dir if (custom_dest and dest_dir) else src_dir
+                    target_folder = os.path.join(base_folder, clean_name) if use_subfolders else base_folder
+                    suffix = f"_{clean_name}" if not use_subfolders else ""
                     out_path = os.path.join(target_folder, f"{base}{suffix}.{p_ext}")
 
-                    final_params = substitute_tokens(p_args, src_path, out_path, item["meta"])
-                    is_two_pass = hasattr(self.ui, "chkTwoPass") and self.ui.chkTwoPass.isChecked()
-                    task = FFmpegTask(src_path, out_path, final_params, item["meta"].get("duration", 0), two_pass=is_two_pass)
-                    task.signals.progress.connect(self.on_task_progress)
-                    task.signals.log.connect(self.on_task_log)
-                    task.signals.finished.connect(self.on_task_finished)
-                    self.active_tasks.append(task)
-                    self.threadpool.start(task)
+                    # Add file to queue
+                    self.add_file_to_queue(src_path)
+                    new_idx = len(self.queue_items) - 1
+                    self.queue_items[new_idx]["output_path"] = out_path
+                    self.queue_items[new_idx]["preset_args"] = p_args
+                    self.queue_items[new_idx]["pre_input"] = p_pre
+                    self.queue_items[new_idx]["status"] = "Pending"
+
+                    # Set custom tooltip showing which preset this queue row belongs to
+                    item_widget = self.ui.tableQueue.item(new_idx, 1)
+                    if item_widget:
+                        item_widget.setToolTip(f"Preset: [{name}]\nOutput: {out_path}")
+
+            self._save_queue_to_disk()
 
         dialog.multiButtonBox.accepted.connect(start_multi_batch)
         dialog.multiButtonBox.rejected.connect(dialog.reject)
@@ -3459,7 +3598,7 @@ class FFBatchApp(QMainWindow):
         self.is_paused = False
         self.ui.btnStart.setEnabled(False)
         self.ui.btnPause.setEnabled(True)
-        self.ui.btnPause.setText("Pause")
+        self.ui.btnPause.setText("⏸")
         self.ui.btnStop.setEnabled(True)
         self.ui.btnSkipCurrent.setEnabled(True)
         self.ui.btnAbortAll.setEnabled(True)
@@ -3482,22 +3621,53 @@ class FFBatchApp(QMainWindow):
         overwrite_val = self.ui.chkOverwrite.isChecked() if hasattr(self.ui, "chkOverwrite") else True
         cpu_prio_val = self.ui.comboCpuPriority.currentText() if hasattr(self.ui, "comboCpuPriority") else "Normal"
 
-        for _idx, item in enumerate(self.queue_items):
+        for idx, item in enumerate(self.queue_items):
+            # Only process Pending items
+            status_item = self.ui.tableQueue.item(idx, 8)
+            current_status = status_item.text() if status_item else item.get("status", "Pending")
+            if "completed" in current_status.lower() or "encoding" in current_status.lower():
+                continue
+
             src_path = item["path"]
             src_dir, src_file = os.path.split(src_path)
             base_name, _ = os.path.splitext(src_file)
 
-            if custom_dest and dest_dir and os.path.isdir(dest_dir):
+            cfg = get_config()
+            naming_pattern = cfg.get("output_naming_pattern", "%~n_converted").strip() or "%~n_converted"
+
+            if custom_dest and dest_dir:
                 target_folder = dest_dir
             else:
                 target_folder = src_dir
 
-            out_filename = f"{base_name}_converted.{out_ext}"
-            out_path = os.path.join(target_folder, out_filename)
-            item["output_path"] = out_path
+            # Auto-create output directory if it does not exist
+            os.makedirs(target_folder, exist_ok=True)
 
-            combined_params = f"{params_template}{fade_extra}{wm_extra}".strip()
+            if item.get("output_path"):
+                out_path = item["output_path"]
+                out_dir_needed = os.path.dirname(out_path)
+                if out_dir_needed:
+                    os.makedirs(out_dir_needed, exist_ok=True)
+            else:
+                # Apply naming pattern without regex
+                resolved_name = naming_pattern.replace("%~n", base_name).replace("{name}", base_name)
+                resolved_name = resolved_name.replace("%~x", f".{out_ext}").replace("{ext}", out_ext)
+                if not resolved_name.endswith(f".{out_ext}"):
+                    out_filename = f"{resolved_name}.{out_ext}"
+                else:
+                    out_filename = resolved_name
+                out_path = os.path.join(target_folder, out_filename)
+                item["output_path"] = out_path
+
+            # Use item-specific preset arguments if queued from Multiple Presets, otherwise use main template
+            item_args = item.get("preset_args", "").strip() or params_template
+            combined_params = f"{item_args} {fade_extra} {wm_extra}".strip()
+            while "  " in combined_params:
+                combined_params = combined_params.replace("  ", " ")
             final_params = substitute_tokens(combined_params, src_path, out_path, item["meta"])
+
+            # Use item-specific pre-input if set, else fallback to main pre_input_val
+            item_pre = item.get("pre_input", "").strip() or pre_input_val
 
             is_two_pass = hasattr(self.ui, "chkTwoPass") and self.ui.chkTwoPass.isChecked()
             task = FFmpegTask(
@@ -3506,7 +3676,7 @@ class FFBatchApp(QMainWindow):
                 final_params,
                 item["meta"].get("duration", 0),
                 two_pass=is_two_pass,
-                pre_input=pre_input_val,
+                pre_input=item_pre,
                 overwrite=overwrite_val,
                 cpu_priority=cpu_prio_val,
                 hang_timeout=60.0
@@ -3682,7 +3852,7 @@ class FFBatchApp(QMainWindow):
                 )
             self.ui.btnStart.setEnabled(True)
             self.ui.btnPause.setEnabled(False)
-            self.ui.btnPause.setText("Pause")
+            self.ui.btnPause.setText("⏸")
             self.ui.btnStop.setEnabled(False)
             self.ui.btnSkipCurrent.setEnabled(False)
             self.ui.btnAbortAll.setEnabled(False)
@@ -3759,7 +3929,7 @@ class FFBatchApp(QMainWindow):
     def on_toggle_pause(self):
         if not self.is_paused:
             self.is_paused = True
-            self.ui.btnPause.setText("Resume")
+            self.ui.btnPause.setText("▶")
             if hasattr(self, "sleep_inhibitor"):
                 self.sleep_inhibitor.uninhibit()
             if hasattr(self, "lbl_power_status"):
@@ -3772,7 +3942,7 @@ class FFBatchApp(QMainWindow):
             self._append_log(">>> Batch processing PAUSED.")
         else:
             self.is_paused = False
-            self.ui.btnPause.setText("Pause")
+            self.ui.btnPause.setText("⏸")
             if hasattr(self, "sleep_inhibitor"):
                 self.sleep_inhibitor.inhibit()
             if hasattr(self, "lbl_power_status"):
@@ -3805,7 +3975,7 @@ class FFBatchApp(QMainWindow):
             task.cancel()
         self.ui.btnStart.setEnabled(True)
         self.ui.btnPause.setEnabled(False)
-        self.ui.btnPause.setText("Pause")
+        self.ui.btnPause.setText("⏸")
         self.ui.btnStop.setEnabled(False)
         self.ui.btnSkipCurrent.setEnabled(False)
         self.ui.btnAbortAll.setEnabled(False)
@@ -5045,8 +5215,7 @@ class FFBatchApp(QMainWindow):
         else:
             self.delay_timer.stop()
             self.statusBar().showMessage("Delayed start triggering now!", 3000)
-            self._append_log(">>> Schedule timer elapsed. Starting queue execution now...")
-            self.start_processing()
+            self._append_log(">>> Schedule timer elapsed. Queue is ready to be started.")
 
     def open_post_process_dialog(self):
         """Configure per-file and queue completion shell command hooks."""
@@ -5531,8 +5700,7 @@ class FFBatchApp(QMainWindow):
                     self.ui.comboOutputFormat.setCurrentIndex(i)
 
             dlg.accept()
-            if dlg.chkWizardAutoStart.isChecked() and self.queue_items:
-                self.start_processing()
+            # Auto-start completely removed. User must click Start button manually.
 
         dlg.btnWizardNext.clicked.connect(on_next)
         dlg.btnWizardBack.clicked.connect(on_back)
@@ -5728,9 +5896,7 @@ class FFBatchApp(QMainWindow):
         """Called automatically when hot folder watchdog detects a newly copied media file."""
         self._append_log(f">>> [Hot Folder Watchdog] New file detected: {os.path.basename(file_path)}")
         self.add_file_to_queue(file_path)
-        if getattr(self, "_hot_folder_auto_start", False):
-            if not self.active_tasks:
-                self.start_processing()
+        # File added to queue in Pending state. Auto-start strictly removed.
 
     def open_hot_folder_dialog(self):
         """Configure and toggle automated hot folder monitoring."""

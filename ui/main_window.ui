@@ -713,12 +713,15 @@
                <widget class="QPushButton" name="btnStart">
                 <property name="minimumSize">
                  <size>
-                  <width>110</width>
+                  <width>45</width>
                   <height>35</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Start (Ctrl+R)</string>
+                </property>
                 <property name="text">
-                 <string>Start Processing</string>
+                 <string>▶</string>
                 </property>
                </widget>
               </item>
@@ -729,12 +732,15 @@
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>90</width>
+                  <width>45</width>
                   <height>35</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Pause / Resume</string>
+                </property>
                 <property name="text">
-                 <string>Pause</string>
+                 <string>⏸</string>
                 </property>
                </widget>
               </item>
@@ -745,12 +751,15 @@
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>90</width>
+                  <width>45</width>
                   <height>35</height>
                  </size>
                 </property>
-                <property name="text">
+                <property name="toolTip">
                  <string>Stop</string>
+                </property>
+                <property name="text">
+                 <string>⏹</string>
                 </property>
                </widget>
               </item>
@@ -761,15 +770,15 @@
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>90</width>
+                  <width>45</width>
                   <height>35</height>
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Skip currently active encoding file and proceed to next in queue</string>
+                 <string>Skip File</string>
                 </property>
                 <property name="text">
-                 <string>Skip File</string>
+                 <string>⏭</string>
                 </property>
                </widget>
               </item>
@@ -780,15 +789,15 @@
                 </property>
                 <property name="minimumSize">
                  <size>
-                  <width>90</width>
+                  <width>45</width>
                   <height>35</height>
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Immediately terminate all active FFmpeg encoding processes</string>
+                 <string>Abort All</string>
                 </property>
                 <property name="text">
-                 <string>Abort All</string>
+                 <string>✖</string>
                 </property>
                </widget>
               </item>
@@ -796,15 +805,15 @@
                <widget class="QPushButton" name="viewProcessing">
                 <property name="minimumSize">
                  <size>
-                  <width>150</width>
+                  <width>45</width>
                   <height>35</height>
                  </size>
                 </property>
                 <property name="toolTip">
-                 <string>Open dedicated live FFmpeg processing log viewer</string>
+                 <string>Process Output &amp; Logs (Ctrl+L)</string>
                 </property>
                 <property name="text">
-                 <string>View Process Log</string>
+                 <string>📜</string>
                 </property>
                </widget>
               </item>

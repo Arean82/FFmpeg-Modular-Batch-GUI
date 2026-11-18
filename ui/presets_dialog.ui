@@ -53,6 +53,16 @@
           </widget>
          </item>
          <item>
+          <widget class="QPushButton" name="btnClonePreset">
+           <property name="toolTip">
+            <string>Clone selected preset to modify and save with a new name</string>
+           </property>
+           <property name="text">
+            <string>📋 Clone</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QPushButton" name="btnDeletePreset">
            <property name="text">
             <string>Delete</string>
@@ -112,6 +122,20 @@
            <widget class="QLineEdit" name="txtPresetTitle"/>
           </item>
           <item row="1" column="0">
+           <widget class="QLabel" name="lblPreInput">
+            <property name="text">
+             <string>Pre-input Flags:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="txtPresetPreInput">
+            <property name="placeholderText">
+             <string>e.g. -ss 00:00:00 -re (placed before -i)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
            <widget class="QLabel" name="lblExt">
             <property name="text">
              <string>Output Format:</string>
@@ -125,14 +149,14 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
+          <item row="3" column="0">
            <widget class="QLabel" name="lblCategory">
             <property name="text">
              <string>Category:</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
+          <item row="3" column="1">
            <widget class="QComboBox" name="comboPresetCategory">
             <item>
              <property name="text">

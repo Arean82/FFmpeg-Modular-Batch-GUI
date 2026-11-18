@@ -232,5 +232,12 @@
     "ext": "mp4",
     "args": "-c copy -avoid_negative_ts make_zero",
     "desc": "To use with trim button: Trim using streamcopy avoiding initial negative pts issue to MP4"
+  },
+  "Resize 854 x 480 H264-AAC (Video)": {
+    "args": "-c:v libx264 -crf 23 -vf scale=854:480 -c:a aac -b:a 128K",
+    "pre_input": "",
+    "ext": "mp4",
+    "category": "Copy",
+    "desc": ""
   }
 }
