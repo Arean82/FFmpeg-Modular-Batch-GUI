@@ -54,7 +54,7 @@
 Every utility from the original .NET WinForms FFBatch application has been faithfully ported to Linux native workflows, alongside enterprise additions:
 
 ```mermaid
-graph TD
+graph TB
     A[Queue Management] --> A1[Advanced Attribute Filtering]
     A --> A2[Custom Column Configurator]
     A --> A3[Interactive Player & Frame Preview]
