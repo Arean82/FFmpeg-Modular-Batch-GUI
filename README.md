@@ -54,26 +54,40 @@
 Every utility from the original .NET WinForms FFBatch application has been faithfully ported to Linux native workflows, alongside enterprise additions:
 
 ```mermaid
-graph TB
-    A[Queue Management] --> A1[Advanced Attribute Filtering]
-    A --> A2[Custom Column Configurator]
-    A --> A3[Interactive Player & Frame Preview]
-    A --> A4[Native Drag-and-Drop Reordering]
+flowchart TB
+    subgraph A["Queue Management"]
+        direction TB
+        A1[Advanced Attribute Filtering]
+        A2[Custom Column Configurator]
+        A3[Interactive Player & Frame Preview]
+        A4[Native Drag-and-Drop Reordering]
+    end
 
-    B[Automation & Power] --> B1[Delayed Start Scheduler]
-    B --> B2[Linux Battery Watchdog]
-    B --> B3[D-Bus OS Sleep Inhibitor]
-    B --> B4[Hot Folder inotify Daemon]
+    subgraph B["Automation & Power"]
+        direction TB
+        B1[Delayed Start Scheduler]
+        B2[Linux Battery Watchdog]
+        B3[D-Bus OS Sleep Inhibitor]
+        B4[Hot Folder inotify Daemon]
+    end
 
-    C[Media Processing] --> C1[Interactive Stream Routing Matrix]
-    C --> C2[Visual Rubber-Band Crop]
-    C --> C3[EBU R128 Loudness Normalizer]
-    C --> C4[HDR10 to SDR BT.709 Tone-Mapping]
+    subgraph C["Media Processing"]
+        direction TB
+        C1[Interactive Stream Routing Matrix]
+        C2[Visual Rubber-Band Crop]
+        C3[EBU R128 Loudness Normalizer]
+        C4[HDR10 to SDR BT.709 Tone-Mapping]
+    end
 
-    D[Quality & Inspection] --> D1[VMAF / SSIM / PSNR Quality Inspector]
-    D --> D2[Automated GPU Encoder Probing]
-    D --> D3[Pre-Flight Disk Space Checker]
-    D --> D4[Process Hang Watchdog & Auto-Retry]
+    subgraph D["Quality & Inspection"]
+        direction TB
+        D1[VMAF / SSIM / PSNR Quality Inspector]
+        D2[Automated GPU Encoder Probing]
+        D3[Pre-Flight Disk Space Checker]
+        D4[Process Hang Watchdog & Auto-Retry]
+    end
+
+    A --> B --> C --> D
 ```
 
 
